@@ -1,0 +1,372 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1520"><meta name="description" content="Detailed beginner-friendly banking lesson: Building CRUD APIs, with Java examples, exercises, quizzes and React connections."><title>Day 7 — Building CRUD APIs · Java Backend Lab</title><link rel="stylesheet" href="course.css"><script src="course.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="index.html"><b>JAVA</b> / BACKEND LAB</a><a href="index.html#curriculum">Course dashboard ↗</a></header><main id="main" class="wrap"><div class="hero"><div class="eyebrow">Day 07 / 30 · Banking project</div><h1>Building CRUD APIs</h1><span class="badge" data-status-day="7">Available · Pending</span><p class="lead">Build backend confidence one idea, one request, and one banking example at a time.</p><p>2,707 words including examples · Read, practice, then check your understanding</p></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-6.html">← Day 6: REST Controllers</a><a href="index.html">Home</a><a href="day-8.html">Day 8: Spring Architecture →</a></nav><details class="mobile-toc"><summary>Jump to a section</summary><a href="#your-destination-today">Your destination today</a><a href="#1-from-reading-data-to-accepting-commands">1. From reading data to accepting commands</a><a href="#2-select-a-safe-practice-resource-beneficiaries">2. Select a safe practice resource: beneficiaries</a><a href="#3-the-model-and-request-contract">3. The model and request contract</a><a href="#4-complete-in-memory-store">4. Complete in-memory store</a><a href="#5-complete-crud-controller">5. Complete CRUD controller</a><a href="#6-read-post-line-by-line">6. Read POST line by line</a><a href="#7-put-versus-patch-precisely">7. PUT versus PATCH, precisely</a><a href="#8-delete-and-204">8. DELETE and 204</a><a href="#9-calling-write-endpoints-from-react-and-curl">9. Calling write endpoints from React and curl</a><a href="#10-accounts-customers-and-transfer-initiation">10. Accounts, customers, and transfer initiation</a><a href="#11-why-this-matters-in-real-work">11. Why this matters in real work</a><a href="#12-common-mistakes-clinic">12. Common mistakes clinic</a><a href="#13-hands-on-lab-beneficiary-lifecycle">13. Hands-on lab: beneficiary lifecycle</a><a href="#14-knowledge-check">14. Knowledge check</a><a href="#15-cheat-sheet">15. Cheat sheet</a><a href="#further-reading">Further reading</a></details><div class="lesson-layout"><aside class="toc"><p class="eyebrow">In this lesson</p><nav aria-label="Table of contents"><a href="#your-destination-today">Your destination today</a><a href="#1-from-reading-data-to-accepting-commands">1. From reading data to accepting commands</a><a href="#2-select-a-safe-practice-resource-beneficiaries">2. Select a safe practice resource: beneficiaries</a><a href="#3-the-model-and-request-contract">3. The model and request contract</a><a href="#4-complete-in-memory-store">4. Complete in-memory store</a><a href="#5-complete-crud-controller">5. Complete CRUD controller</a><a href="#6-read-post-line-by-line">6. Read POST line by line</a><a href="#7-put-versus-patch-precisely">7. PUT versus PATCH, precisely</a><a href="#8-delete-and-204">8. DELETE and 204</a><a href="#9-calling-write-endpoints-from-react-and-curl">9. Calling write endpoints from React and curl</a><a href="#10-accounts-customers-and-transfer-initiation">10. Accounts, customers, and transfer initiation</a><a href="#11-why-this-matters-in-real-work">11. Why this matters in real work</a><a href="#12-common-mistakes-clinic">12. Common mistakes clinic</a><a href="#13-hands-on-lab-beneficiary-lifecycle">13. Hands-on lab: beneficiary lifecycle</a><a href="#14-knowledge-check">14. Knowledge check</a><a href="#15-cheat-sheet">15. Cheat sheet</a><a href="#further-reading">Further reading</a></nav></aside><article><h2 id="your-destination-today">Your destination today</h2>
+<p>Implement a complete practice CRUD API, then explain how financial operations differ from ordinary profile changes. You will bind JSON with RequestBody, generate IDs, return 201 with Location, distinguish replacement from partial update, and handle deletion/conflicts. Allow 3–4 hours with the lab.</p>
+<p><strong>Prerequisites:</strong> Days 4–6 HTTP, Spring startup, records, controllers, and ResponseEntity; Day 3 Map and Optional. Use the Java 21 / Boot 3.5 baseline. No database, authentication, or money movement is implemented by the CRUD example. Keep it on your learning machine with fictional data.</p>
+<h2 id="1-from-reading-data-to-accepting-commands">1. From reading data to accepting commands</h2>
+<p>GET answers a question. POST/PUT/PATCH/DELETE ask the server to change state. These endpoints must be more careful because an incorrect write can outlive the UI that sent it.</p>
+<pre><code class="language-text">React form → JSON.stringify → POST + Content-Type
+    → Spring reads body → Jackson creates request value
+    → method checks input/current state → store changes
+    → ResponseEntity → JSON result → React updates screen
+</code></pre>
+<p><code>@RequestBody</code> tells Spring to read the request body through a message converter. It does not mean “read URL parameters.” A malformed JSON body fails during parsing before your method runs. Valid JSON can still contain invalid values. Day 9 adds declarative validation; today's code performs small explicit checks so the exercise is usable now.</p>
+<h2 id="2-select-a-safe-practice-resource-beneficiaries">2. Select a safe practice resource: beneficiaries</h2>
+<p>A beneficiary is a customer's saved payee. Creating, renaming, and deleting a saved payee teaches CRUD without pretending arbitrary balance edits are legitimate banking operations. Our simplified fields are <code>name</code> and <code>destinationAccount</code>; later a real system verifies destination ownership/eligibility and controls approval workflows.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Route</th>
+<th>Input</th>
+<th>Success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create</td>
+<td>POST <code>/api/customers/7/beneficiaries</code></td>
+<td>name + destinationAccount</td>
+<td>201 + Location</td>
+</tr>
+<tr>
+<td>List</td>
+<td>GET same collection</td>
+<td>none</td>
+<td>200 array</td>
+</tr>
+<tr>
+<td>Read</td>
+<td>GET <code>.../beneficiaries/1</code></td>
+<td>ID</td>
+<td>200 object</td>
+</tr>
+<tr>
+<td>Replace</td>
+<td>PUT <code>.../beneficiaries/1</code></td>
+<td>all writable fields</td>
+<td>200 object</td>
+</tr>
+<tr>
+<td>Rename</td>
+<td>PATCH <code>.../beneficiaries/1</code></td>
+<td>name only</td>
+<td>200 object</td>
+</tr>
+<tr>
+<td>Remove</td>
+<td>DELETE <code>.../beneficiaries/1</code></td>
+<td>ID</td>
+<td>204</td>
+</tr>
+</tbody>
+</table></div>
+<p>The parent customer must exist. This exercise supports only customer 7. The URL is not authentication; a real service must verify that the caller may manage that customer's beneficiaries.</p>
+<h2 id="3-the-model-and-request-contract">3. The model and request contract</h2>
+<p>Create <code>domain/Beneficiary.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.domain;
+
+public record Beneficiary(
+    Long id, Long customerId, String name, String destinationAccount) {}
+</code></pre>
+<p>Create <code>dto/BeneficiaryRequest.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.dto;
+
+public record BeneficiaryRequest(String name, String destinationAccount) {}
+</code></pre>
+<p>Create <code>dto/RenameBeneficiaryRequest.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.dto;
+
+public record RenameBeneficiaryRequest(String name) {}
+</code></pre>
+<p>The server owns <code>id</code> and <code>customerId</code>; they do not come from the create payload. Separating these fields already limits accidental over-posting. The rename request has one allowed change. We return the domain record directly in this introductory example because its fields are deliberately safe; Day 9 formalizes separate response DTOs.</p>
+<h2 id="4-complete-in-memory-store">4. Complete in-memory store</h2>
+<p>Create <code>repository/BeneficiaryStore.java</code>. This is a practice store bean, not Spring Data JPA. It loses all records when the process restarts and is not shared across multiple application instances.</p>
+<pre><code class="language-java">package com.example.bank.repository;
+
+import com.example.bank.domain.Beneficiary;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class BeneficiaryStore {
+    private final Map&lt;Long, Beneficiary&gt; data = new HashMap&lt;&gt;();
+    private long nextId = 1;
+
+    public synchronized List&lt;Beneficiary&gt; list(Long customerId) {
+        return data.values().stream()
+            .filter(b -&gt; b.customerId().equals(customerId))
+            .sorted(java.util.Comparator.comparing(Beneficiary::id))
+            .toList();
+    }
+
+    public synchronized Optional&lt;Beneficiary&gt; find(Long customerId, Long id) {
+        return Optional.ofNullable(data.get(id))
+            .filter(b -&gt; b.customerId().equals(customerId));
+    }
+
+    public synchronized Optional&lt;Beneficiary&gt; create(
+        Long customerId, String name, String destinationAccount) {
+        if (duplicate(customerId, destinationAccount, null)) return Optional.empty();
+        Long id = nextId++;
+        Beneficiary b = new Beneficiary(id, customerId, name, destinationAccount);
+        data.put(id, b);
+        return Optional.of(b);
+    }
+
+    public synchronized boolean duplicate(
+        Long customerId, String destinationAccount, Long excludingId) {
+        return data.values().stream().anyMatch(b -&gt;
+            b.customerId().equals(customerId)
+            &amp;&amp; b.destinationAccount().equals(destinationAccount)
+            &amp;&amp; !b.id().equals(excludingId));
+    }
+
+    public synchronized void save(Beneficiary beneficiary) {
+        data.put(beneficiary.id(), beneficiary);
+    }
+
+    public synchronized void delete(Long id) {
+        data.remove(id);
+    }
+}
+</code></pre>
+<p><code>@Repository</code> makes this a discoverable data-access collaborator. <code>nextId++</code> allocates a server ID and advances the counter. <code>synchronized</code> protects each method's access to the HashMap/counter within one JVM. It does not create a database transaction or guarantee multi-method business atomicity. <code>find</code> filters on customer as well as ID, avoiding retrieval under the wrong parent. Optional expresses absence without a null result leaking to callers.</p>
+<p><code>duplicate</code> excludes the current ID during update, so saving an unchanged destination is allowed. <code>create</code> checks duplicates and inserts under one lock. The controller below also holds the same store lock for its read/check/write update sequence. This deliberately simple synchronization keeps the lab deterministic; Day 8 moves orchestration to a service, and later database constraints/transactions provide durable guarantees.</p>
+<h2 id="5-complete-crud-controller">5. Complete CRUD controller</h2>
+<p>Create <code>controller/BeneficiaryController.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import com.example.bank.domain.Beneficiary;
+import com.example.bank.dto.BeneficiaryRequest;
+import com.example.bank.dto.RenameBeneficiaryRequest;
+import com.example.bank.repository.BeneficiaryStore;
+import java.net.URI;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/customers/{customerId}/beneficiaries&quot;)
+public class BeneficiaryController {
+    private final BeneficiaryStore store;
+
+    public BeneficiaryController(BeneficiaryStore store) {
+        this.store = store;
+    }
+
+    private boolean knownCustomer(Long id) { return id.equals(7L); }
+    private boolean blank(String value) { return value == null || value.isBlank(); }
+
+    @GetMapping
+    public ResponseEntity&lt;List&lt;Beneficiary&gt;&gt; list(
+        @PathVariable(&quot;customerId&quot;) Long customerId) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(store.list(customerId));
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Beneficiary&gt; get(
+        @PathVariable(&quot;customerId&quot;) Long customerId,
+        @PathVariable(&quot;id&quot;) Long id) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        return store.find(customerId, id).map(ResponseEntity::ok)
+            .orElseGet(() -&gt; ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity&lt;Beneficiary&gt; create(
+        @PathVariable(&quot;customerId&quot;) Long customerId,
+        @RequestBody BeneficiaryRequest request) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        if (blank(request.name()) || blank(request.destinationAccount())) {
+            return ResponseEntity.badRequest().build();
+        }
+        var created = store.create(customerId, request.name().trim(),
+                                   request.destinationAccount().trim());
+        if (created.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).build();
+        }
+        Beneficiary b = created.get();
+        URI location = URI.create(&quot;/api/customers/&quot; + customerId
+            + &quot;/beneficiaries/&quot; + b.id());
+        return ResponseEntity.created(location).body(b);
+    }
+
+    @PutMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Beneficiary&gt; replace(
+        @PathVariable(&quot;customerId&quot;) Long customerId,
+        @PathVariable(&quot;id&quot;) Long id,
+        @RequestBody BeneficiaryRequest request) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        if (blank(request.name()) || blank(request.destinationAccount())) {
+            return ResponseEntity.badRequest().build();
+        }
+        synchronized (store) {
+            if (store.find(customerId, id).isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            String destination = request.destinationAccount().trim();
+            if (store.duplicate(customerId, destination, id)) {
+                return ResponseEntity.status(HttpStatus.CONFLICT).build();
+            }
+            Beneficiary b = new Beneficiary(id, customerId,
+                request.name().trim(), destination);
+            store.save(b);
+            return ResponseEntity.ok(b);
+        }
+    }
+
+    @PatchMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Beneficiary&gt; rename(
+        @PathVariable(&quot;customerId&quot;) Long customerId,
+        @PathVariable(&quot;id&quot;) Long id,
+        @RequestBody RenameBeneficiaryRequest request) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        if (blank(request.name())) return ResponseEntity.badRequest().build();
+        synchronized (store) {
+            var existing = store.find(customerId, id);
+            if (existing.isEmpty()) return ResponseEntity.notFound().build();
+            Beneficiary old = existing.get();
+            Beneficiary b = new Beneficiary(id, customerId,
+                request.name().trim(), old.destinationAccount());
+            store.save(b);
+            return ResponseEntity.ok(b);
+        }
+    }
+
+    @DeleteMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Void&gt; delete(
+        @PathVariable(&quot;customerId&quot;) Long customerId,
+        @PathVariable(&quot;id&quot;) Long id) {
+        if (!knownCustomer(customerId)) return ResponseEntity.notFound().build();
+        synchronized (store) {
+            if (store.find(customerId, id).isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+            store.delete(id);
+            return ResponseEntity.noContent().build();
+        }
+    }
+}
+</code></pre>
+<p>The constructor receives the store bean; Spring supplies it. We keep explicit checks here so you can see every status decision. This controller is intentionally too large for long-term design; Day 8 introduces a service to own these workflows. Locks in HTTP code are also a teaching compromise, not our destination architecture.</p>
+<h2 id="6-read-post-line-by-line">6. Read POST line by line</h2>
+<p><code>@PostMapping</code> selects creation requests to the collection. Path binding determines the parent customer. <code>@RequestBody</code> deserializes JSON into <code>BeneficiaryRequest</code>. We check parent existence before attempting insertion, then require nonblank fields. Trimming normalizes surrounding whitespace for this practice contract.</p>
+<p><code>store.create</code> allocates the ID only on successful insertion. An empty Optional indicates duplicate destination, translated to 409. <code>URI.create</code> builds a relative resource URI. <code>ResponseEntity.created(location)</code> sets 201 and the Location header. <code>.body(b)</code> includes the created representation so React can add it to the list immediately.</p>
+<pre><code class="language-http">POST /api/customers/7/beneficiaries HTTP/1.1
+Content-Type: application/json
+
+{&quot;name&quot;:&quot;Asha Savings&quot;,&quot;destinationAccount&quot;:&quot;ACC102&quot;}
+</code></pre>
+<pre><code class="language-http">HTTP/1.1 201 Created
+Location: /api/customers/7/beneficiaries/1
+Content-Type: application/json
+
+{&quot;id&quot;:1,&quot;customerId&quot;:7,&quot;name&quot;:&quot;Asha Savings&quot;,&quot;destinationAccount&quot;:&quot;ACC102&quot;}
+</code></pre>
+<p>Sending the same destination again returns 409 with no body in this implementation. Error JSON is not invented here; Day 10 will standardize error responses. A client must handle empty error bodies as well as JSON.</p>
+<h2 id="7-put-versus-patch-precisely">7. PUT versus PATCH, precisely</h2>
+<p>Our PUT replaces all writable fields (<code>name</code>, <code>destinationAccount</code>) of an existing beneficiary. It preserves server-owned identity fields. It requires both writable fields, so <code>{"name":"New name"}</code> returns 400 instead of silently preserving an omitted destination. We choose 404 for a missing target rather than supporting create-by-PUT; that is an explicit contract.</p>
+<pre><code class="language-http">PUT /api/customers/7/beneficiaries/1 HTTP/1.1
+Content-Type: application/json
+
+{&quot;name&quot;:&quot;Home Savings&quot;,&quot;destinationAccount&quot;:&quot;ACC102&quot;}
+</code></pre>
+<p>Our PATCH supports one operation: rename. It requires <code>name</code>, rejects null/blank, and preserves destination. This is a documented custom partial-update contract using JSON, not RFC JSON Patch or JSON Merge Patch. A nullable record alone cannot distinguish omitted and explicit null fields; here both are invalid, so ambiguity is avoided.</p>
+<pre><code class="language-http">PATCH /api/customers/7/beneficiaries/1 HTTP/1.1
+Content-Type: application/json
+
+{&quot;name&quot;:&quot;Emergency Fund&quot;}
+</code></pre>
+<p>Both return 200 with the updated representation. Repeating this PUT or this rename PATCH has the same intended effect. A future increment-based PATCH would have different retry semantics. Document each patch operation rather than assuming all PATCH requests are idempotent.</p>
+<h2 id="8-delete-and-204">8. DELETE and 204</h2>
+<p>Our DELETE checks parent membership, removes the record, then returns 204 with no body. A second DELETE returns 404, still leaving the resource absent. Deleting a payee record is distinct from deleting a bank account or erasing transaction history. Real account closure may require zero balance and preserve audit data.</p>
+<pre><code class="language-javascript">async function removeBeneficiary(id) {
+  const response = await fetch(`/api/customers/7/beneficiaries/${id}`, {
+    method: &quot;DELETE&quot;
+  });
+  if (!response.ok) throw new Error(`Delete failed: ${response.status}`);
+  // 204: update UI state; no JSON body to parse.
+}
+</code></pre>
+<h2 id="9-calling-write-endpoints-from-react-and-curl">9. Calling write endpoints from React and curl</h2>
+<pre><code class="language-javascript">async function saveBeneficiary(draft) {
+  const response = await fetch(&quot;/api/customers/7/beneficiaries&quot;, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: JSON.stringify(draft)
+  });
+  if (response.status === 409) throw new Error(&quot;That payee is already saved&quot;);
+  if (!response.ok) throw new Error(`Save failed: ${response.status}`);
+  return response.json();
+}
+</code></pre>
+<p>Disable the submit button while pending for usability, but keep server duplicate checks. On success append the returned record rather than making up an ID in the browser. For PUT send both writable fields; for the custom PATCH send only the rename field.</p>
+<pre><code class="language-shell">curl -i -X POST http://localhost:8080/api/customers/7/beneficiaries \
+  -H 'Content-Type: application/json' \
+  -d '{&quot;name&quot;:&quot;Asha Savings&quot;,&quot;destinationAccount&quot;:&quot;ACC102&quot;}'
+
+curl -i -X PATCH http://localhost:8080/api/customers/7/beneficiaries/1 \
+  -H 'Content-Type: application/json' -d '{&quot;name&quot;:&quot;Emergency Fund&quot;}'
+
+curl -i -X DELETE http://localhost:8080/api/customers/7/beneficiaries/1
+</code></pre>
+<p>Postman uses the same method, URL, header, and raw JSON body. Inspect Location after creation. Paste it into a GET to verify the newly created resource.</p>
+<h2 id="10-accounts-customers-and-transfer-initiation">10. Accounts, customers, and transfer initiation</h2>
+<p>Creation contracts differ by resource. POST <code>/api/customers</code> might accept name/email; POST <code>/api/accounts</code> might accept customerId/type/currency. The server assigns IDs, opening policy, and initial balance. It must not accept <code>isAdmin</code>, <code>approved</code>, or arbitrary opening funds because a browser supplied them.</p>
+<pre><code class="language-json">{&quot;customerId&quot;:7,&quot;type&quot;:&quot;SAVINGS&quot;,&quot;currency&quot;:&quot;INR&quot;}
+</code></pre>
+<p>A transfer is a command creating a financial workflow:</p>
+<pre><code class="language-http">POST /api/transfers HTTP/1.1
+Content-Type: application/json
+
+{&quot;fromAccountId&quot;:101,&quot;toAccountId&quot;:102,&quot;amount&quot;:&quot;5000.00&quot;,&quot;currency&quot;:&quot;INR&quot;}
+</code></pre>
+<p>The service must authenticate ownership, check account eligibility/currency, reject identical accounts and nonpositive amounts, check limits and available funds, record the operation, and coordinate debit/credit. Day 8 illustrates rule coordination; Day 13 adds transactions and atomicity. Do not implement it as <code>PUT /accounts/101 {"balance":"45000"}</code>: that lets the client dictate bank state and does not guarantee corresponding credit, audit history, or retry safety.</p>
+<p>A real transfer service needs durable idempotency, transaction boundaries, concurrency control, and reconciliation. The CRUD store above does not supply these properties. Calling an endpoint “banking” does not make the toy store financially correct.</p>
+<h2 id="11-why-this-matters-in-real-work">11. Why this matters in real work</h2>
+<p>A write API is an agreement about permitted changes. Server-generated IDs, explicit replacement semantics, documented partial updates, and correct statuses make clients predictable. Duplicate checks belong on the server, eventually backed by durable constraints. Clear contracts allow the UI to recover without guessing whether a resource was created or changed.</p>
+<h2 id="12-common-mistakes-clinic">12. Common mistakes clinic</h2>
+<ul>
+<li><strong>Returning 200 for creation without a reason:</strong> use 201 and Location for a created resource.</li>
+<li><strong>Trusting IDs/balances from payloads:</strong> reserve server-owned fields.</li>
+<li><strong>PUT preserves every omitted field accidentally:</strong> that is partial-update behavior; define it deliberately.</li>
+<li><strong>PATCH with ambiguous null handling:</strong> specify omission/null semantics or use a formal patch format.</li>
+<li><strong>DELETE returns 204 plus JSON:</strong> 204 has no body.</li>
+<li><strong>Map treated as a database:</strong> restart loses data, multiple servers have different maps.</li>
+<li><strong>Unsynchronized check-then-write:</strong> two concurrent requests can both pass a check.</li>
+<li><strong>Deleting audit records to “close account”:</strong> model business closure explicitly.</li>
+<li><strong>Blindly retrying transfer POST:</strong> uncertain outcomes require idempotency or reconciliation.</li>
+</ul>
+<h2 id="13-hands-on-lab-beneficiary-lifecycle">13. Hands-on lab: beneficiary lifecycle</h2>
+<ol>
+<li>Add the three records, store, and controller under the root package.</li>
+<li>List customer 7's beneficiaries: expect 200 and <code>[]</code>.</li>
+<li>Create a beneficiary, save its generated ID and Location, then GET it.</li>
+<li>Submit the same destination twice: expect 409, no second record.</li>
+<li>PUT both writable fields, then try PUT with only name: expect 400.</li>
+<li>PATCH the name and confirm destination is unchanged.</li>
+<li>Query under customer 8: expect 404 in this fixture.</li>
+<li>DELETE, then GET and DELETE again: both should return 404.</li>
+<li>Restart the app and explain why records disappear.</li>
+</ol>
+<p><strong>Acceptance criteria:</strong> all six operations work, IDs are server-generated, parent membership is checked, duplicates use 409, PATCH preserves untouched fields, and 204 has an empty body. Create a request/status/body table before adding new features.</p>
+<p><strong>Challenge:</strong> support two fictional customers and allow the same destination for different customers while rejecting duplicates within one customer. Move the parent-existence fixture to a small reusable store. Write the exact duplicate predicate and explain why global uniqueness would be the wrong rule here.</p>
+<h2 id="14-knowledge-check">14. Knowledge check</h2>
+<details><summary>1. Does RequestBody validate a positive transfer amount?</summary><p>No. It binds/deserializes JSON. Semantic constraints require explicit checks or validation annotations and Valid.</p></details>
+<details><summary>2. What belongs in the Location header?</summary><p>The URI of the newly created resource, so the client can retrieve it.</p></details>
+<details><summary>3. Why must PUT send both writable beneficiary fields?</summary><p>Our contract defines replacement, not preservation of omitted writable fields.</p></details>
+<details><summary>4. Is this custom PATCH JSON Merge Patch?</summary><p>No. It is a documented rename operation. Formal patch formats have their own media types and rules.</p></details>
+<details><summary>5. Is one synchronized method a durable transaction?</summary><p>No. It only coordinates threads using that lock in one process. It does not survive crashes or coordinate multiple instances.</p></details>
+<details><summary>6. Why is changing account balance an unsuitable transfer API?</summary><p>It bypasses bank-owned rules, corresponding debit/credit, audit, authorization, atomicity, and retry handling.</p></details>
+
+<h2 id="15-cheat-sheet">15. Cheat sheet</h2>
+<p>POST creates; return 201 + Location + representation. RequestBody reads JSON. PUT replaces writable fields; PATCH applies a defined subset change. DELETE can return 204 with no body. Generate IDs server-side. Treat duplicate/current-state conflicts deliberately. In-memory CRUD is practice infrastructure, not a ledger. Next: extract rules into services and storage behind repositories.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/requestbody.html">Spring MVC RequestBody</a></li>
+<li><a href="https://www.rfc-editor.org/rfc/rfc5789.html">HTTP PATCH, RFC 5789</a></li>
+</ul><section class="finish" aria-labelledby="finish-heading"><h2 id="finish-heading">You reached the end of Day 7</h2><p>Try the lab and knowledge check, then finish when you’re ready. Completion is saved only in this browser; it does not submit anything or move money.</p><div class="actions"><button type="button" class="primary" data-finish-day="7">Finish lesson · Mark complete</button><button type="button" data-reset-day="7">Mark pending again</button></div><p id="completion-message" class="completion-message" role="status"></p><noscript>Enable JavaScript to save completion. All lesson content remains readable.</noscript></section></article></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-6.html">← Day 6: REST Controllers</a><a href="index.html">Home</a><a href="day-8.html">Day 8: Spring Architecture →</a></nav></main><footer>Java Backend Lab · Fictional banking examples for learning · Course baseline: Java 21 / Spring Boot 3.5</footer></body></html>

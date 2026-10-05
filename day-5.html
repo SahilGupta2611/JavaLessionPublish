@@ -1,0 +1,290 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1520"><meta name="description" content="Detailed beginner-friendly banking lesson: Spring Boot Fundamentals, with Java examples, exercises, quizzes and React connections."><title>Day 5 — Spring Boot Fundamentals · Java Backend Lab</title><link rel="stylesheet" href="course.css"><script src="course.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="index.html"><b>JAVA</b> / BACKEND LAB</a><a href="index.html#curriculum">Course dashboard ↗</a></header><main id="main" class="wrap"><div class="hero"><div class="eyebrow">Day 05 / 30 · Banking project</div><h1>Spring Boot Fundamentals</h1><span class="badge" data-status-day="5">Available · Pending</span><p class="lead">Build backend confidence one idea, one request, and one banking example at a time.</p><p>2,732 words including examples · Read, practice, then check your understanding</p></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-4.html">← Day 4: HTTP & REST Fundamentals</a><a href="index.html">Home</a><a href="day-6.html">Day 6: REST Controllers →</a></nav><details class="mobile-toc"><summary>Jump to a section</summary><a href="#your-destination-today">Your destination today</a><a href="#1-what-problem-does-spring-solve">1. What problem does Spring solve?</a><a href="#2-the-ioc-container-gently">2. The IoC container, gently</a><a href="#3-choose-a-reproducible-learning-setup">3. Choose a reproducible learning setup</a><a href="#4-spring-initializr-dependency-selection-is-architectural">4. Spring Initializr: dependency selection is architectural</a><a href="#5-read-a-complete-pom-xml">5. Read a complete pom.xml</a><a href="#6-project-and-package-structure">6. Project and package structure</a><a href="#7-the-main-class-line-by-line">7. The main class, line by line</a><a href="#8-your-first-banking-endpoint">8. Your first banking endpoint</a><a href="#9-starting-and-packaging">9. Starting and packaging</a><a href="#10-what-happens-during-startup">10. What happens during startup?</a><a href="#11-configuration-properties-and-yaml">11. Configuration: properties and YAML</a><a href="#12-annotation-overview-and-beans">12. Annotation overview and beans</a><a href="#13-troubleshooting-like-a-backend-developer">13. Troubleshooting like a backend developer</a><a href="#14-why-this-matters-in-real-work">14. Why this matters in real work</a><a href="#15-hands-on-lab-banking-skeleton">15. Hands-on lab: banking skeleton</a><a href="#16-knowledge-check">16. Knowledge check</a><a href="#17-cheat-sheet">17. Cheat sheet</a><a href="#further-reading">Further reading</a></details><div class="lesson-layout"><aside class="toc"><p class="eyebrow">In this lesson</p><nav aria-label="Table of contents"><a href="#your-destination-today">Your destination today</a><a href="#1-what-problem-does-spring-solve">1. What problem does Spring solve?</a><a href="#2-the-ioc-container-gently">2. The IoC container, gently</a><a href="#3-choose-a-reproducible-learning-setup">3. Choose a reproducible learning setup</a><a href="#4-spring-initializr-dependency-selection-is-architectural">4. Spring Initializr: dependency selection is architectural</a><a href="#5-read-a-complete-pom-xml">5. Read a complete pom.xml</a><a href="#6-project-and-package-structure">6. Project and package structure</a><a href="#7-the-main-class-line-by-line">7. The main class, line by line</a><a href="#8-your-first-banking-endpoint">8. Your first banking endpoint</a><a href="#9-starting-and-packaging">9. Starting and packaging</a><a href="#10-what-happens-during-startup">10. What happens during startup?</a><a href="#11-configuration-properties-and-yaml">11. Configuration: properties and YAML</a><a href="#12-annotation-overview-and-beans">12. Annotation overview and beans</a><a href="#13-troubleshooting-like-a-backend-developer">13. Troubleshooting like a backend developer</a><a href="#14-why-this-matters-in-real-work">14. Why this matters in real work</a><a href="#15-hands-on-lab-banking-skeleton">15. Hands-on lab: banking skeleton</a><a href="#16-knowledge-check">16. Knowledge check</a><a href="#17-cheat-sheet">17. Cheat sheet</a><a href="#further-reading">Further reading</a></nav></aside><article><h2 id="your-destination-today">Your destination today</h2>
+<p>Build a running banking API skeleton and understand why it starts. You should be able to explain Spring versus Spring Boot, read a Maven project, locate configuration, and trace a request into your first endpoint. Allow 2–3 hours, including installation and troubleshooting.</p>
+<p><strong>Prerequisites:</strong> Days 1–3 Java foundations and Day 4 HTTP/JSON. You know a class is a blueprint and a request is method + URL + headers + body. Today adds a running server; it does not yet add a database, login, or real transfers.</p>
+<h2 id="1-what-problem-does-spring-solve">1. What problem does Spring solve?</h2>
+<p>Suppose a controller needs an account service, the service needs a repository, and a transfer service needs both a repository and a validator. Without a framework, you must construct every dependency, decide lifetimes, configure HTTP routing, parse JSON, and wire errors. That work is repetitive and easy to get wrong.</p>
+<p><strong>Spring Framework</strong> provides infrastructure such as dependency injection, web request handling, transaction support, and integration utilities. <strong>Spring Boot</strong> builds on Spring with conventions, starter dependencies, auto-configuration, an application launcher, and embedded-server support. Spring is the toolkit; Boot provides a practical configured starting point.</p>
+<p>React comparison: React is the UI library; a project setup gives you a build tool, development server, and conventions. Spring Boot similarly reduces setup, but its application runs on the backend JVM. The analogy is about project infrastructure, not identical runtime behavior.</p>
+<p>Boot does not remove your responsibility to design APIs or enforce banking rules. It can configure JSON handling when web dependencies are present. It cannot invent your overdraft rules or ownership checks.</p>
+<h2 id="2-the-ioc-container-gently">2. The IoC container, gently</h2>
+<p>IoC means Inversion of Control. Rather than your code constructing every collaborator, Spring creates and connects selected objects. Its application context/container is a registry and lifecycle manager for those objects. A <strong>bean</strong> is an object managed by that container.</p>
+<pre><code class="language-text">You declare: AccountController needs AccountService.
+Spring finds: a suitable AccountService bean.
+Spring constructs: AccountController(service).
+Requests later use that already-connected controller.
+</code></pre>
+<p>An ordinary <code>new Account(...)</code> domain value need not be a bean. Controllers, services, and repositories often are beans. Most discovered application beans are singleton-scoped by default: one instance per application context. Consequently, don't keep “current customer” or request-specific mutable fields on a shared controller. Two requests can arrive at the same instance.</p>
+<p>Day 2 constructor injection is the foundation. The constructor states required collaborators. Day 8 will implement the whole chain; today you only need to understand why annotated classes can be discovered.</p>
+<h2 id="3-choose-a-reproducible-learning-setup">3. Choose a reproducible learning setup</h2>
+<p>The examples in Days 5–9 target <strong>Java 21 and Spring Boot 3.5.16</strong>, using Spring MVC and <code>jakarta.validation</code>. This pinned course baseline avoids mixing Boot 3 and Boot 4 starter/Jackson changes. It is a learning choice, not a claim that it is the newest release. If Initializr no longer offers that line, generate a current project and deliberately adapt its dependencies, or use the pinned pom below. Do not silently mix examples from different major versions.</p>
+<p>Install a JDK 21, not just a runtime. A JDK includes <code>javac</code>, the compiler. Check both commands:</p>
+<pre><code class="language-shell">java -version
+javac -version
+</code></pre>
+<p>Both should identify Java 21. Your IDE's project JDK and terminal JAVA_HOME can differ. Set the project SDK to the same JDK. You can use IntelliJ IDEA, Eclipse, or VS Code with Java support. The generated Maven wrapper removes the need for a separately installed Maven.</p>
+<h2 id="4-spring-initializr-dependency-selection-is-architectural">4. Spring Initializr: dependency selection is architectural</h2>
+<p>Open <a href="https://start.spring.io/">Spring Initializr</a>. Choose Maven, Java, a compatible Spring Boot version, Jar packaging, and Java 21. Use group <code>com.example</code>, artifact <code>banking-api</code>, package <code>com.example.bank</code>. Select <strong>Spring Web</strong> and <strong>Validation</strong>. Add DevTools only if you want development restarts.</p>
+<p>A group is a project namespace; an artifact is the build's name. The package is your Java namespace. Download and unzip, then open the folder containing <code>pom.xml</code> in the IDE. Avoid opening only <code>src</code>, because the IDE then loses build configuration.</p>
+<p>Do not add JPA/PostgreSQL yet. A database starter can trigger datasource auto-configuration that fails without connection details. We will intentionally store practice data in memory until Day 11.</p>
+<p>Dependencies are reusable libraries. A starter is a curated group of compatible libraries for a capability. <code>spring-boot-starter-web</code> on the Boot 3 baseline brings Spring MVC, JSON support, and an embedded servlet server. <code>spring-boot-starter-validation</code> supplies Bean Validation support. Maven downloads transitive dependencies too: you do not manually download every jar.</p>
+<h2 id="5-read-a-complete-pom-xml">5. Read a complete pom.xml</h2>
+<pre><code class="language-xml">&lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;
+&lt;project xmlns=&quot;http://maven.apache.org/POM/4.0.0&quot;
+         xmlns:xsi=&quot;http://www.w3.org/2001/XMLSchema-instance&quot;
+         xsi:schemaLocation=&quot;http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd&quot;&gt;
+  &lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;
+  &lt;parent&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-parent&lt;/artifactId&gt;
+    &lt;version&gt;3.5.16&lt;/version&gt;
+    &lt;relativePath/&gt;
+  &lt;/parent&gt;
+  &lt;groupId&gt;com.example&lt;/groupId&gt;
+  &lt;artifactId&gt;banking-api&lt;/artifactId&gt;
+  &lt;version&gt;0.0.1-SNAPSHOT&lt;/version&gt;
+  &lt;properties&gt;
+    &lt;java.version&gt;21&lt;/java.version&gt;
+  &lt;/properties&gt;
+  &lt;dependencies&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+      &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+      &lt;artifactId&gt;spring-boot-starter-validation&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+      &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+      &lt;artifactId&gt;spring-boot-starter-test&lt;/artifactId&gt;
+      &lt;scope&gt;test&lt;/scope&gt;
+    &lt;/dependency&gt;
+  &lt;/dependencies&gt;
+  &lt;build&gt;
+    &lt;plugins&gt;
+      &lt;plugin&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-maven-plugin&lt;/artifactId&gt;
+      &lt;/plugin&gt;
+    &lt;/plugins&gt;
+  &lt;/build&gt;
+&lt;/project&gt;
+</code></pre>
+<p><code>modelVersion</code> is the Maven model version, not your Java version. The Boot parent supplies compatible dependency versions and build defaults. Your group/artifact/version identifies your application. <code>java.version</code> chooses the intended Java level; it does not install a JDK. A dependency is identified by group and artifact; Boot manages starter versions here. <code>scope=test</code> excludes test libraries from normal application runtime. The Boot Maven plugin packages an executable jar and supports <code>spring-boot:run</code>.</p>
+<p>Think <code>pom.xml</code> as the Java build/dependency counterpart of <code>package.json</code>, with different conventions. Maven has a lifecycle: <code>compile</code> compiles source; <code>test</code> compiles and runs tests; <code>package</code> also creates a jar; <code>verify</code> runs later verification phases. <code>clean</code> removes generated build output. Downloading dependencies requires network access the first time.</p>
+<h2 id="6-project-and-package-structure">6. Project and package structure</h2>
+<pre><code class="language-text">banking-api/
+  pom.xml
+  mvnw                     # wrapper for macOS/Linux
+  mvnw.cmd                 # wrapper for Windows
+  .mvn/wrapper/
+  src/main/java/com/example/bank/
+    BankingApplication.java
+    controller/BankInfoController.java
+  src/main/resources/
+    application.properties
+  src/test/java/com/example/bank/
+    BankingApplicationTests.java
+  target/                  # generated; don't hand-edit
+</code></pre>
+<p><code>src/main/java</code> contains Java source. <code>src/main/resources</code> contains runtime configuration/resources. <code>src/test/java</code> is test code. Java package names correspond to directory paths. Public class <code>BankingApplication</code> goes in <code>BankingApplication.java</code>. The main class should be in a root package above controllers/services, so component scanning can discover subpackages. A controller in unrelated <code>other.package</code> may never become a bean.</p>
+<p>Later we add <code>service</code>, <code>repository</code>, <code>domain</code>, and <code>dto</code> under <code>com.example.bank</code>. This course uses layers for clarity; real teams may group by feature. Consistent boundaries matter more than a single universal folder layout.</p>
+<h2 id="7-the-main-class-line-by-line">7. The main class, line by line</h2>
+<pre><code class="language-java">package com.example.bank;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class BankingApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(BankingApplication.class, args);
+    }
+}
+</code></pre>
+<p><code>package</code> declares the namespace. Imports let us use short type names. <code>@SpringBootApplication</code> combines Boot configuration, auto-configuration, and component scanning. It is metadata interpreted by the framework, not a method call. <code>public static void main</code> is the JVM entry point. <code>String[] args</code> receives command-line arguments. <code>SpringApplication.run</code> creates/configures the application context and starts the application. The class reference tells Boot where application configuration begins.</p>
+<p>Auto-configuration is conditional: Boot considers libraries on the classpath, properties, and beans you supplied. It configures common defaults when appropriate. It is not “scan the internet and choose code.” Read startup failures and configuration rather than treating it as magic.</p>
+<h2 id="8-your-first-banking-endpoint">8. Your first banking endpoint</h2>
+<p>Create <code>src/main/java/com/example/bank/controller/BankInfoController.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import java.util.Map;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class BankInfoController {
+    @GetMapping(&quot;/api/bank-info&quot;)
+    public Map&lt;String, String&gt; info() {
+        return Map.of(&quot;name&quot;, &quot;Learning Bank&quot;, &quot;status&quot;, &quot;READY&quot;);
+    }
+}
+</code></pre>
+<p><code>@RestController</code> registers a web controller and makes return values response bodies. <code>@GetMapping</code> connects GET requests for a path to this method. <code>Map&lt;String,String&gt;</code> is a Java map, not JSON text; Spring uses an HTTP message converter to serialize it. <code>Map.of</code> creates a small unmodifiable map. Day 6 replaces arbitrary maps with typed response models.</p>
+<pre><code class="language-http">GET /api/bank-info HTTP/1.1
+Host: localhost:8080
+Accept: application/json
+</code></pre>
+<pre><code class="language-http">HTTP/1.1 200 OK
+Content-Type: application/json
+
+{&quot;name&quot;:&quot;Learning Bank&quot;,&quot;status&quot;:&quot;READY&quot;}
+</code></pre>
+<p>JSON property order is not a contract. Do not test success by the exact string ordering. This endpoint is a learning info endpoint, not a full production health check.</p>
+<h2 id="9-starting-and-packaging">9. Starting and packaging</h2>
+<p>From the folder containing <code>pom.xml</code>:</p>
+<pre><code class="language-shell"># macOS/Linux (make wrapper executable if needed)
+chmod +x mvnw
+./mvnw spring-boot:run
+
+# Windows PowerShell
+.\mvnw.cmd spring-boot:run
+</code></pre>
+<p>Use the command for your operating system. Stop the process with Ctrl+C. Alternatively run the main class from the IDE. Do not start both simultaneously on the same port.</p>
+<pre><code class="language-shell">curl -i http://localhost:8080/api/bank-info
+</code></pre>
+<p><code>-i</code> displays headers and status along with the body. A browser address bar also sends a GET. To package instead of running in development:</p>
+<pre><code class="language-shell">./mvnw clean package
+java -jar target/banking-api-0.0.1-SNAPSHOT.jar
+</code></pre>
+<p>The jar contains your application plus necessary dependencies. Its embedded server means you can run it without separately installing Tomcat. Spring Boot is the server-side application; GitHub Pages serves this course's static HTML only and cannot run the banking JVM backend.</p>
+<h2 id="10-what-happens-during-startup">10. What happens during startup?</h2>
+<ol>
+<li>The JVM calls <code>main</code>.</li>
+<li>Boot reads configuration and establishes the application context.</li>
+<li>Component scanning discovers eligible annotated classes under the root package.</li>
+<li>Auto-configuration supplies suitable infrastructure, including MVC and the server for this baseline.</li>
+<li>Spring constructs beans and resolves their dependencies.</li>
+<li>Web mappings are registered and the embedded server binds its port.</li>
+<li>A “Started BankingApplication” message indicates startup finished; then requests can arrive.</li>
+</ol>
+<p>A successful build is not the same as a successful server startup. An application can compile while failing to bind its port. A running server is not proof the intended route exists. Verify the endpoint's status and body.</p>
+<h2 id="11-configuration-properties-and-yaml">11. Configuration: properties and YAML</h2>
+<p>Create <code>src/main/resources/application.properties</code>:</p>
+<pre><code class="language-properties">spring.application.name=banking-api
+server.port=8080
+</code></pre>
+<p>Properties use <code>key=value</code>. A YAML alternative expresses hierarchical keys:</p>
+<pre><code class="language-yaml">spring:
+  application:
+    name: banking-api
+server:
+  port: 8080
+</code></pre>
+<p>Use one format for the same settings while learning; putting conflicting values in both files is confusing. YAML indentation is meaningful; use spaces. <code>server.port=8081</code> changes where the server listens, so your browser URL must change too. These are backend server ports, independent of the React dev server port.</p>
+<p>Profiles select environment-specific configuration. <code>application-dev.properties</code> can contain <code>server.port=8081</code>; activate it with:</p>
+<pre><code class="language-shell">./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+</code></pre>
+<p>Or run a packaged jar with <code>--spring.profiles.active=dev</code>. A profile is a configuration choice, not a security boundary. Never commit credentials in a production profile. Later deployment lessons will use environment variables and secret management. Command-line options can override file settings, so inspect how the app was started when a value seems ignored.</p>
+<h2 id="12-annotation-overview-and-beans">12. Annotation overview and beans</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>Typical role</th>
+<th>Beginner interpretation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@Component</code></td>
+<td>Generic managed collaborator</td>
+<td>Spring should discover this class</td>
+</tr>
+<tr>
+<td><code>@Service</code></td>
+<td>Business behavior</td>
+<td>This component coordinates rules</td>
+</tr>
+<tr>
+<td><code>@Repository</code></td>
+<td>Data access</td>
+<td>This component stores/loads data</td>
+</tr>
+<tr>
+<td><code>@RestController</code></td>
+<td>HTTP adapter</td>
+<td>This component receives API requests</td>
+</tr>
+</tbody>
+</table></div>
+<p>The specialized annotations communicate intent. <code>@Repository</code> also participates in persistence exception translation where applicable. They do not automatically implement methods, create database tables, or validate every rule. Only discovered or explicitly registered objects become beans.</p>
+<p>Optional DevTools provides development conveniences such as restart support. It is not required to understand startup and should not be treated as production infrastructure. IDE recompilation and resource changes influence when restart occurs. If a change seems absent, stop, rebuild, and run once to remove uncertainty.</p>
+<h2 id="13-troubleshooting-like-a-backend-developer">13. Troubleshooting like a backend developer</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Likely cause</th>
+<th>First useful check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Port already in use</td>
+<td>Another process owns 8080</td>
+<td>Stop other app or use 8081</td>
+</tr>
+<tr>
+<td>Unsupported class version / invalid release</td>
+<td>JDK mismatch</td>
+<td>Check terminal and IDE JDK</td>
+</tr>
+<tr>
+<td>404 from running server</td>
+<td>Wrong URL or controller not scanned</td>
+<td>Check mapping and package</td>
+</tr>
+<tr>
+<td>Datasource configuration failed</td>
+<td>Added database starter too early</td>
+<td>Remove it until Day 11</td>
+</tr>
+<tr>
+<td>Dependency resolution failed</td>
+<td>Network/repository/version problem</td>
+<td>Read Maven error coordinates</td>
+</tr>
+<tr>
+<td>No qualifying bean</td>
+<td>Missing discovery/implementation</td>
+<td>Check package and annotations</td>
+</tr>
+<tr>
+<td>Whitelabel page at <code>/</code></td>
+<td>No root route</td>
+<td>Try <code>/api/bank-info</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Read the first meaningful cause in the stack trace, not only its final line. Avoid random annotation additions. A 404 proves an HTTP server responded; “connection refused” means your client could not connect at that host/port.</p>
+<h2 id="14-why-this-matters-in-real-work">14. Why this matters in real work</h2>
+<p>A teammate should be able to clone, build, and run the same application. Pinning a coherent Java/Boot baseline, keeping generated files separate, and understanding configuration prevents “works on my machine” drift. Component scanning and bean lifetimes explain many runtime problems that Java compilation cannot catch. You now have a place where the HTTP contracts from Day 4 can execute.</p>
+<h2 id="15-hands-on-lab-banking-skeleton">15. Hands-on lab: banking skeleton</h2>
+<ol>
+<li>Create the project and verify the JDK.</li>
+<li>Add the main class and BankInfoController exactly under the root package.</li>
+<li>Start it and capture the 200 response using curl or Postman.</li>
+<li>Add GET <code>/api/welcome</code> returning <code>{"message":"Welcome to Learning Bank"}</code>.</li>
+<li>Change the development profile to port 8081 and verify both startup logs and the new URL.</li>
+<li>Stop, package, and run the jar. Verify the endpoint again.</li>
+<li>Write a README with prerequisites, run commands, profile activation, and endpoint URL.</li>
+</ol>
+<p><strong>Acceptance criteria:</strong> a fresh checkout has a reproducible build; a documented command starts it; both routes return JSON; no database is required; the profile actually changes the listening port. If you see 404, distinguish route failure from connection failure before editing code.</p>
+<p><strong>Challenge:</strong> deliberately move the controller outside the root package, observe the 404, then restore it. Explain why it compiled successfully but was not registered as a controller. Add a second small controller in a sibling subpackage to prove your explanation.</p>
+<h2 id="16-knowledge-check">16. Knowledge check</h2>
+<details><summary>1. Is every Java object a Spring bean?</summary><p>No. Beans are container-managed objects. Domain values you construct yourself normally remain ordinary Java objects.</p></details>
+<details><summary>2. What does a starter provide?</summary><p>A curated dependency set for a capability, with compatible versions managed by the Boot setup.</p></details>
+<details><summary>3. Why put the main class above controllers?</summary><p>Its package provides the default component-scan boundary. Subpackages are discovered; unrelated packages may not be.</p></details>
+<details><summary>4. Does changing java.version install Java?</summary><p>No. It configures the build target. You still need a compatible installed JDK and IDE setup.</p></details>
+<details><summary>5. How are 404 and connection refused different?</summary><p>404 is a server response for a missing route/resource. Connection refused happens before an HTTP response is available.</p></details>
+<details><summary>6. Can a singleton controller store the active customer's ID in a field?</summary><p>No. Shared mutable request state can leak across concurrent requests. Keep request values local and derive identity from the request's security context later.</p></details>
+
+<h2 id="17-cheat-sheet">17. Cheat sheet</h2>
+<p><strong>Spring = infrastructure. Boot = configured application starting point. Bean = managed object.</strong> <code>pom.xml</code> declares the build. <code>@SpringBootApplication</code> starts configuration and discovery. Put controllers under its package. Web starter + mapping gives you HTTP routes. Properties configure ports/profiles. Compile, start, and verify are separate steps. Next: design useful read endpoints with typed JSON responses.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://docs.spring.io/spring-boot/reference/using/structuring-your-code.html">Spring Boot code layout</a></li>
+<li><a href="https://docs.spring.io/spring-boot/3.5/">Spring Boot 3.5 documentation</a></li>
+<li><a href="https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html">Maven lifecycle introduction</a></li>
+</ul><section class="finish" aria-labelledby="finish-heading"><h2 id="finish-heading">You reached the end of Day 5</h2><p>Try the lab and knowledge check, then finish when you’re ready. Completion is saved only in this browser; it does not submit anything or move money.</p><div class="actions"><button type="button" class="primary" data-finish-day="5">Finish lesson · Mark complete</button><button type="button" data-reset-day="5">Mark pending again</button></div><p id="completion-message" class="completion-message" role="status"></p><noscript>Enable JavaScript to save completion. All lesson content remains readable.</noscript></section></article></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-4.html">← Day 4: HTTP & REST Fundamentals</a><a href="index.html">Home</a><a href="day-6.html">Day 6: REST Controllers →</a></nav></main><footer>Java Backend Lab · Fictional banking examples for learning · Course baseline: Java 21 / Spring Boot 3.5</footer></body></html>

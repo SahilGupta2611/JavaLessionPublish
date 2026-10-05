@@ -1,0 +1,314 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1520"><meta name="description" content="Detailed beginner-friendly banking lesson: HTTP &amp; REST Fundamentals, with Java examples, exercises, quizzes and React connections."><title>Day 4 — HTTP &amp; REST Fundamentals · Java Backend Lab</title><link rel="stylesheet" href="course.css"><script src="course.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="index.html"><b>JAVA</b> / BACKEND LAB</a><a href="index.html#curriculum">Course dashboard ↗</a></header><main id="main" class="wrap"><div class="hero"><div class="eyebrow">Day 04 / 30 · Banking project</div><h1>HTTP & REST Fundamentals</h1><span class="badge" data-status-day="4">Available · Pending</span><p class="lead">Build backend confidence one idea, one request, and one banking example at a time.</p><p>2,705 words including examples · Read, practice, then check your understanding</p></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-2-reader.html">← Review Day 2</a><a href="index.html">Home</a><a href="day-5.html">Day 5: Spring Boot Fundamentals →</a></nav><details class="mobile-toc"><summary>Jump to a section</summary><a href="#your-destination-today">Your destination today</a><a href="#1-two-programs-one-conversation">1. Two programs, one conversation</a><a href="#2-read-a-complete-exchange">2. Read a complete exchange</a><a href="#3-rest-starts-with-resources">3. REST starts with resources</a><a href="#4-methods-and-crud">4. Methods and CRUD</a><a href="#5-idempotency-and-retries">5. Idempotency and retries</a><a href="#6-json-is-text-not-a-shared-object">6. JSON is text, not a shared object</a><a href="#7-path-query-or-body">7. Path, query, or body?</a><a href="#8-headers-you-will-actually-use">8. Headers you will actually use</a><a href="#9-status-codes-tell-the-client-what-happened">9. Status codes tell the client what happened</a><a href="#10-successful-and-rejected-transfers">10. Successful and rejected transfers</a><a href="#11-react-consumes-the-contract">11. React consumes the contract</a><a href="#12-why-this-matters-in-backend-work">12. Why this matters in backend work</a><a href="#13-common-mistakes-clinic">13. Common mistakes clinic</a><a href="#14-hands-on-lab-design-the-bank-s-api">14. Hands-on lab: design the bank's API</a><a href="#15-knowledge-check-predict-before-opening">15. Knowledge check — predict before opening</a><a href="#16-cheat-sheet">16. Cheat sheet</a><a href="#further-reading">Further reading</a></details><div class="lesson-layout"><aside class="toc"><p class="eyebrow">In this lesson</p><nav aria-label="Table of contents"><a href="#your-destination-today">Your destination today</a><a href="#1-two-programs-one-conversation">1. Two programs, one conversation</a><a href="#2-read-a-complete-exchange">2. Read a complete exchange</a><a href="#3-rest-starts-with-resources">3. REST starts with resources</a><a href="#4-methods-and-crud">4. Methods and CRUD</a><a href="#5-idempotency-and-retries">5. Idempotency and retries</a><a href="#6-json-is-text-not-a-shared-object">6. JSON is text, not a shared object</a><a href="#7-path-query-or-body">7. Path, query, or body?</a><a href="#8-headers-you-will-actually-use">8. Headers you will actually use</a><a href="#9-status-codes-tell-the-client-what-happened">9. Status codes tell the client what happened</a><a href="#10-successful-and-rejected-transfers">10. Successful and rejected transfers</a><a href="#11-react-consumes-the-contract">11. React consumes the contract</a><a href="#12-why-this-matters-in-backend-work">12. Why this matters in backend work</a><a href="#13-common-mistakes-clinic">13. Common mistakes clinic</a><a href="#14-hands-on-lab-design-the-bank-s-api">14. Hands-on lab: design the bank's API</a><a href="#15-knowledge-check-predict-before-opening">15. Knowledge check — predict before opening</a><a href="#16-cheat-sheet">16. Cheat sheet</a><a href="#further-reading">Further reading</a></nav></aside><article><h2 id="your-destination-today">Your destination today</h2>
+<p>By the end, you should be able to design a banking endpoint, explain every part of its HTTP exchange, choose a method and status code, and call it from React. You will write an API contract before writing a Spring controller. Allow 2–3 hours including the lab; revisit the examples until you can predict the response without looking.</p>
+<p><strong>Prerequisites:</strong> Java objects, interfaces, collections, and basic JavaScript <code>fetch</code>. No Spring installation is required today. Recap: a Java object exists inside a running process. An HTTP response moves a representation of that object across a network. Your React app cannot directly invoke a Java method in another process.</p>
+<h2 id="1-two-programs-one-conversation">1. Two programs, one conversation</h2>
+<p>Imagine React shows a customer's account balance. The browser knows how to display data; the bank's server knows which account belongs to that customer and stores the authoritative balance. HTTP, Hypertext Transfer Protocol, gives both programs a shared request/response format.</p>
+<pre><code class="language-text">React component → fetch → HTTP request → server route
+                                              ↓
+                                    application rules + data
+                                              ↓
+React state ← parsed JSON ← HTTP response ← result
+</code></pre>
+<p>A request is an instruction or question. A response reports the result. The server can reject a request even if the UI button was enabled. Frontend validation improves usability; backend validation protects the data. Reloading React does not reset a server database. Restarting our later in-memory practice backend does reset its data.</p>
+<p><strong>Banking mental model:</strong> the browser is a customer at a service desk, the URL identifies the desk/resource, the method describes the requested operation, headers are context, and the body is the filled form. The response has an outcome code and, sometimes, a receipt. This analogy explains structure, not authentication: real ownership checks must be implemented on the server.</p>
+<p>HTTP is stateless at the protocol level: each request must carry enough context for the server to understand it. Applications can still keep data, sessions, and balances. Stateless does not mean “the bank forgets your account.” Use HTTPS for banking communications: it protects transport; it does not replace permissions checks.</p>
+<h2 id="2-read-a-complete-exchange">2. Read a complete exchange</h2>
+<pre><code class="language-http">GET /api/accounts/101?includeRecentTransactions=true HTTP/1.1
+Host: localhost:8080
+Accept: application/json
+Authorization: Bearer example-token
+</code></pre>
+<p>Line 1 contains the method, request target, and protocol version. <code>/api/accounts/101</code> identifies one account. The part after <code>?</code> is a query string. <code>Host</code> identifies the server. <code>Accept</code> says what response formats the client can understand. <code>Authorization</code> carries credentials; the example token is a placeholder, not a working login. A GET normally has no body. HTTP/2 and HTTP/3 encode messages differently, but these conceptual pieces remain.</p>
+<pre><code class="language-http">HTTP/1.1 200 OK
+Content-Type: application/json
+Cache-Control: no-store
+
+{
+  &quot;id&quot;: 101,
+  &quot;customerId&quot;: 7,
+  &quot;type&quot;: &quot;SAVINGS&quot;,
+  &quot;balance&quot;: &quot;50000.00&quot;,
+  &quot;currency&quot;: &quot;INR&quot;
+}
+</code></pre>
+<p><code>200</code> communicates success. <code>Content-Type</code> describes the response body. The blank line separates headers from the body in this readable HTTP/1.1 notation. <code>Cache-Control: no-store</code> asks caches not to store the response; sensitive responses need a deliberate cache policy. The balance is a JSON string here to retain an exact decimal representation at the JavaScript boundary. Your API must document whether money is a decimal string or number, and use the choice consistently.</p>
+<p>Request anatomy: <strong>method + URL + headers + optional body</strong>. Response anatomy: <strong>status + headers + optional body</strong>. A <code>204</code> response has no body; do not call <code>response.json()</code> on it.</p>
+<h2 id="3-rest-starts-with-resources">3. REST starts with resources</h2>
+<p>REST is an architectural style, not a Java library. In a resource-oriented API, account, customer, beneficiary, transfer, and transaction are resources with stable addresses. A representation describes the resource, commonly using JSON. The method conveys the operation, so URLs usually do not need verbs.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>Collection URL</th>
+<th>Individual URL</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Customer</td>
+<td><code>/api/customers</code></td>
+<td><code>/api/customers/7</code></td>
+<td>Person/profile</td>
+</tr>
+<tr>
+<td>Account</td>
+<td><code>/api/accounts</code></td>
+<td><code>/api/accounts/101</code></td>
+<td>Account summary</td>
+</tr>
+<tr>
+<td>Beneficiary</td>
+<td><code>/api/customers/7/beneficiaries</code></td>
+<td><code>/api/customers/7/beneficiaries/12</code></td>
+<td>Approved payee</td>
+</tr>
+<tr>
+<td>Transfer</td>
+<td><code>/api/transfers</code></td>
+<td><code>/api/transfers/9001</code></td>
+<td>Transfer instruction/result</td>
+</tr>
+<tr>
+<td>Transaction</td>
+<td><code>/api/accounts/101/transactions</code></td>
+<td><code>/api/transactions/3001</code></td>
+<td>Recorded ledger entry</td>
+</tr>
+</tbody>
+</table></div>
+<p>Prefer <code>/api/accounts/101</code> over <code>/getAccount?id=101</code>, and <code>/api/transfers</code> over <code>/doTransferNow</code>. Plural nouns make collections predictable. Nested URLs express relationships; a server must still check that beneficiary 12 belongs to customer 7. Avoid deeply nesting everything: a transaction can have its own canonical URL.</p>
+<p>A transfer and a transaction are related but not necessarily the same thing. One transfer may produce a debit entry and a credit entry. Later you may model pending, failed, or reversed transfers. Naming the resources clearly keeps frontend assumptions honest.</p>
+<h2 id="4-methods-and-crud">4. Methods and CRUD</h2>
+<p>CRUD means Create, Read, Update, Delete. HTTP methods express related intentions, but business operations are richer than four database actions.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Typical URL</th>
+<th>CRUD intention</th>
+<th>Body</th>
+<th>Typical success</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GET</td>
+<td><code>/api/accounts/101</code></td>
+<td>Read</td>
+<td>None</td>
+<td>200 + representation</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/accounts</code></td>
+<td>Create</td>
+<td>Creation fields</td>
+<td>201 + created resource</td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/api/customers/7</code></td>
+<td>Replace writable representation</td>
+<td>All writable fields</td>
+<td>200 or 204</td>
+</tr>
+<tr>
+<td>PATCH</td>
+<td><code>/api/customers/7</code></td>
+<td>Apply partial change</td>
+<td>Defined patch format</td>
+<td>200 or 204</td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/api/customers/7/beneficiaries/12</code></td>
+<td>Remove resource</td>
+<td>Usually none</td>
+<td>204</td>
+</tr>
+</tbody>
+</table></div>
+<p>GET must not transfer money or alter a balance. A browser, cache, or monitoring system can repeat GET automatically. POST <code>/api/transfers</code> creates a transfer instruction. It must not mean “blindly set both balances.” Account closure is usually a business workflow with balance, compliance, and retention checks, rather than deleting a historical account row.</p>
+<p>PUT says “make the writable representation look like this.” A missing writable field is not automatically “keep the old value.” PATCH says “apply this specified change.” PATCH is not just an incomplete PUT: document missing fields, explicit null, and patch media type. Day 7 implements one small patch contract.</p>
+<h2 id="5-idempotency-and-retries">5. Idempotency and retries</h2>
+<p>An operation is idempotent when repeating the same request has the same intended server effect as doing it once. It does not mean every response is identical.</p>
+<p>GET is safe and idempotent. PUT and DELETE are idempotent by their semantics. Deleting a beneficiary twice may return 204 first and 404 second, while the final state remains “beneficiary absent.” POST is not generally idempotent: sending the same transfer twice may debit twice. PATCH can be idempotent when setting <code>nickname</code> to a value; a patch that increments a counter is not.</p>
+<pre><code class="language-http">POST /api/transfers HTTP/1.1
+Content-Type: application/json
+Idempotency-Key: transfer-client-generated-uuid
+
+{&quot;fromAccountId&quot;:101,&quot;toAccountId&quot;:102,&quot;amount&quot;:&quot;5000.00&quot;,&quot;currency&quot;:&quot;INR&quot;}
+</code></pre>
+<p>If the network times out, the server may already have processed the transfer. A real idempotency-key implementation stores the key, request identity, and result durably and atomically, and rejects reuse with a different payload. Adding a header alone does nothing. Our early lessons do not implement this guarantee. Disable-double-click is helpful UX but cannot prevent all duplicate requests.</p>
+<h2 id="6-json-is-text-not-a-shared-object">6. JSON is text, not a shared object</h2>
+<p>JSON supports objects, arrays, strings, numbers, booleans, and null. Property names and strings use double quotes. Comments, trailing commas, <code>undefined</code>, and functions are not JSON.</p>
+<pre><code class="language-javascript">const draft = { customerId: 7, type: &quot;SAVINGS&quot; };
+const body = JSON.stringify(draft); // JavaScript object → JSON text
+const result = JSON.parse('{&quot;id&quot;:101}'); // JSON text → JS object
+</code></pre>
+<p>Serialization turns an in-process object into a transferable representation. Deserialization does the reverse. Spring typically uses Jackson to convert Java objects and JSON. A Java <code>Long</code> or <code>BigDecimal</code> is not literally sent as a Java object. Date/time, enum, and money formats are part of the API contract. JavaScript integers beyond its safe integer range also need a documented string representation.</p>
+<pre><code class="language-java">// Conceptual response model; Spring serialization comes in Day 6.
+public record AccountView(
+    Long id, String type, String balance, String currency) {}
+</code></pre>
+<p>The record defines named components. A record is immutable in the sense that its component references cannot be reassigned; mutable referenced objects still need care. An instance might become <code>{"id":101,"type":"SAVINGS","balance":"50000.00","currency":"INR"}</code> on the wire.</p>
+<h2 id="7-path-query-or-body">7. Path, query, or body?</h2>
+<p>Use a <strong>path variable</strong> to identify a resource: <code>101</code> in <code>/api/accounts/101</code>. Use <strong>query parameters</strong> to shape a retrieval: <code>/api/transactions?accountId=101&amp;type=DEBIT&amp;page=0&amp;size=20</code>. Use a <strong>request body</strong> for a structured creation or change.</p>
+<pre><code class="language-http">POST /api/customers HTTP/1.1
+Content-Type: application/json
+Accept: application/json
+
+{&quot;name&quot;:&quot;Asha Rao&quot;,&quot;email&quot;:&quot;asha@example.com&quot;}
+</code></pre>
+<p>Do not put account passwords or transfer payloads in query strings: URLs are often recorded in logs and browser history. Do not use a GET body to implement filtering; interoperability is poor. Encode query values instead of concatenating arbitrary user text. In JavaScript, <code>URLSearchParams</code> handles encoding.</p>
+<pre><code class="language-javascript">const query = new URLSearchParams({ type: &quot;DEBIT&quot;, page: &quot;0&quot; });
+const response = await fetch(`/api/accounts/101/transactions?${query}`);
+</code></pre>
+<h2 id="8-headers-you-will-actually-use">8. Headers you will actually use</h2>
+<p><code>Content-Type: application/json</code> means “the body I am sending is JSON.” It is distinct from <code>Accept: application/json</code>, which requests a JSON response. A missing or incompatible request Content-Type may produce 415 Unsupported Media Type, rather than a validation error.</p>
+<p><code>Authorization: Bearer ...</code> commonly carries an access token. It should be read from an established authentication flow, not hardcoded in a component. The backend validates it and checks permissions. <code>Location</code> in a 201 response identifies the newly created resource. Headers are metadata; do not encode business fields in custom headers merely because you can.</p>
+<p>React on port 5173 and Spring on 8080 are different origins. Relative <code>/api/...</code> calls need a development proxy or a same-origin deployment. If you call <code>http://localhost:8080</code> directly, configure a restricted development CORS policy. CORS is browser access control, not authentication. A JSON cross-origin POST can trigger a preflight OPTIONS request before your POST.</p>
+<h2 id="9-status-codes-tell-the-client-what-happened">9. Status codes tell the client what happened</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Status</th>
+<th>Meaning</th>
+<th>Banking example</th>
+<th>UI response</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>200 OK</td>
+<td>Successful response with data</td>
+<td>Account found</td>
+<td>Render balance</td>
+</tr>
+<tr>
+<td>201 Created</td>
+<td>New resource created</td>
+<td>Transfer instruction stored</td>
+<td>Show receipt</td>
+</tr>
+<tr>
+<td>204 No Content</td>
+<td>Success without body</td>
+<td>Beneficiary removed</td>
+<td>Remove row</td>
+</tr>
+<tr>
+<td>400 Bad Request</td>
+<td>Invalid input/request</td>
+<td>Negative transfer amount</td>
+<td>Show form errors</td>
+</tr>
+<tr>
+<td>401 Unauthorized</td>
+<td>Missing/invalid authentication</td>
+<td>Expired token</td>
+<td>Start login flow</td>
+</tr>
+<tr>
+<td>403 Forbidden</td>
+<td>Authenticated but not permitted</td>
+<td>Other customer's account</td>
+<td>Show access denial</td>
+</tr>
+<tr>
+<td>404 Not Found</td>
+<td>Resource absent/not exposed</td>
+<td>Unknown account</td>
+<td>Show not found</td>
+</tr>
+<tr>
+<td>409 Conflict</td>
+<td>Request conflicts with current state</td>
+<td>Duplicate beneficiary</td>
+<td>Explain conflict</td>
+</tr>
+<tr>
+<td>500 Internal Server Error</td>
+<td>Unexpected server failure</td>
+<td>Unhandled defect</td>
+<td>Show retry/support message</td>
+</tr>
+</tbody>
+</table></div>
+<p>401 is about authentication; 403 is about permission. Some systems deliberately return 404 for resources the user must not discover. Insufficient funds is a business rejection; 409 is one reasonable documented choice, not a universal mandated status. A server bug is not a client's 400. Do not return 200 with <code>{"success":false}</code> for every failure: clients, monitoring, and proxies use status codes.</p>
+<h2 id="10-successful-and-rejected-transfers">10. Successful and rejected transfers</h2>
+<pre><code class="language-http">HTTP/1.1 201 Created
+Location: /api/transfers/9001
+Content-Type: application/json
+
+{&quot;id&quot;:9001,&quot;status&quot;:&quot;PENDING&quot;,&quot;amount&quot;:&quot;5000.00&quot;,&quot;currency&quot;:&quot;INR&quot;}
+</code></pre>
+<p>201 means the transfer resource was created, not necessarily that settlement finished. Choose <code>PENDING</code> or <code>SUCCESS</code> according to actual behavior. For asynchronously accepted work, 202 Accepted is another useful contract; do not label unfinished work as successful settlement.</p>
+<pre><code class="language-http">HTTP/1.1 400 Bad Request
+Content-Type: application/json
+
+{&quot;code&quot;:&quot;INVALID_AMOUNT&quot;,&quot;message&quot;:&quot;Amount must be greater than zero&quot;}
+</code></pre>
+<pre><code class="language-http">HTTP/1.1 409 Conflict
+Content-Type: application/json
+
+{&quot;code&quot;:&quot;INSUFFICIENT_FUNDS&quot;,&quot;message&quot;:&quot;Available balance is too low&quot;}
+</code></pre>
+<p>These error bodies are proposed contracts, not Spring's guaranteed default output. Day 10 will standardize formatting. Never include stack traces, credentials, or full account numbers in a client error.</p>
+<h2 id="11-react-consumes-the-contract">11. React consumes the contract</h2>
+<pre><code class="language-javascript">async function initiateTransfer(draft) {
+  const response = await fetch(&quot;/api/transfers&quot;, {
+    method: &quot;POST&quot;,
+    headers: {
+      &quot;Content-Type&quot;: &quot;application/json&quot;,
+      &quot;Accept&quot;: &quot;application/json&quot;
+    },
+    body: JSON.stringify(draft)
+  });
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.message ?? `Request failed: ${response.status}`);
+  }
+  return payload;
+}
+</code></pre>
+<p><code>fetch</code> resolves even for HTTP 400/500, so check <code>ok</code>. It rejects for network failures. <code>JSON.stringify</code> is necessary because the request body is text. <code>response.json()</code> asynchronously parses the response. This example assumes the documented JSON contract; a production client also handles empty/non-JSON responses. Display amounts using decimal-aware formatting and do not use floating-point arithmetic to make financial decisions in the UI.</p>
+<h2 id="12-why-this-matters-in-backend-work">12. Why this matters in backend work</h2>
+<p>An API contract is a collaboration agreement. A frontend can implement loading states, forms, and errors before database code exists. A backend can evolve internal storage without changing the contract. Clear resource names and status codes make integration tests, support tools, and incident diagnosis easier. For banking, duplicate processing, ownership, and money representation are design concerns from the first endpoint, not finishing touches.</p>
+<h2 id="13-common-mistakes-clinic">13. Common mistakes clinic</h2>
+<ul>
+<li><strong>GET <code>/transfer?amount=5000</code>:</strong> GET is safe; create a transfer using POST.</li>
+<li><strong>Putting every field in the URL:</strong> identifiers and filters belong there, structured change data belongs in a body.</li>
+<li><strong>Confusing Content-Type and Accept:</strong> one describes the sent body; the other requests a response format.</li>
+<li><strong>Treating 201 as settled money:</strong> creation and settlement are different outcomes.</li>
+<li><strong>Retrying an uncertain transfer blindly:</strong> use a durable idempotency design or reconcile its status.</li>
+<li><strong>Calling JSON parsing after 204:</strong> there is nothing to parse.</li>
+<li><strong>Trusting hidden React controls for security:</strong> permissions must be enforced server-side.</li>
+</ul>
+<h2 id="14-hands-on-lab-design-the-bank-s-api">14. Hands-on lab: design the bank's API</h2>
+<p>Work in a document or API client; no running server is required. Create contracts for account lookup, customer creation, beneficiary removal, transaction filtering, and transfer initiation.</p>
+<ol>
+<li>For each operation, write method, URL, path/query/body fields, request headers, success status, and example JSON.</li>
+<li>Add a 404 account lookup, a 400 invalid customer email, and a 409 duplicate beneficiary. Write how React should react to each.</li>
+<li>Decide whether transfer creation means pending or settled. Add a status lookup endpoint so an uncertain client can reconcile.</li>
+<li>Write a fetch function for account lookup that checks <code>response.ok</code>, and one for deletion that does not parse a 204 body.</li>
+<li>Review the URLs: remove verbs where a resource and method express the operation.</li>
+</ol>
+<p><strong>Acceptance criteria:</strong> five clear contracts, no modifying GET, no secret URL parameters, 201 with Location for creation, no body on 204, and a documented money representation. Explain why repeating a transfer POST is riskier than repeating an account GET.</p>
+<p><strong>Challenge:</strong> draw a timeout timeline where the server creates a transfer but React never sees the receipt. Specify what an idempotency key must store and how a reused key with a different amount should be rejected. Do not claim you have implemented this simply by sending the header.</p>
+<h2 id="15-knowledge-check-predict-before-opening">15. Knowledge check — predict before opening</h2>
+<details><summary>1. Is a repeated DELETE allowed to return a different status and still be idempotent?</summary><p>Yes. Idempotency describes intended state/effect. The resource can remain absent after both calls even if the second returns 404.</p></details>
+<details><summary>2. Where does a transaction date-range filter belong?</summary><p>In query parameters, such as <code>?from=2026-10-01&amp;to=2026-10-05</code>. Document inclusive/exclusive boundaries and timezone.</p></details>
+<details><summary>3. Why does fetch not enter catch for every 400?</summary><p>HTTP errors still produce responses. Check <code>response.ok</code> and throw or branch explicitly; network failures reject the promise.</p></details>
+<details><summary>4. Does JSON contain Java class instances?</summary><p>No. It is a transferable data representation. Jackson reconstructs a Java value using the target type and configuration.</p></details>
+<details><summary>5. Is Authorization enough to access any account ID?</summary><p>No. Authentication identifies the caller; authorization checks their permission for that specific account.</p></details>
+<details><summary>6. What should a client do after 204?</summary><p>Treat the action as successful without trying to parse a response body.</p></details>
+
+<h2 id="16-cheat-sheet">16. Cheat sheet</h2>
+<p><strong>Path = identity. Query = retrieval options. Body = structured input.</strong> GET reads, POST creates/initiates, PUT replaces, PATCH changes selected fields, DELETE removes. <code>Content-Type</code> describes the body; <code>Accept</code> requests a representation. Check HTTP status before assuming success. Use decimal money contracts. A retry can be a new financial action unless the server implements idempotency. Next: turn these contracts into a running Spring Boot application.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://www.rfc-editor.org/rfc/rfc9110.html">HTTP semantics and methods, RFC 9110</a></li>
+<li><a href="https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch">Fetch API, MDN</a></li>
+</ul><section class="finish" aria-labelledby="finish-heading"><h2 id="finish-heading">You reached the end of Day 4</h2><p>Try the lab and knowledge check, then finish when you’re ready. Completion is saved only in this browser; it does not submit anything or move money.</p><div class="actions"><button type="button" class="primary" data-finish-day="4">Finish lesson · Mark complete</button><button type="button" data-reset-day="4">Mark pending again</button></div><p id="completion-message" class="completion-message" role="status"></p><noscript>Enable JavaScript to save completion. All lesson content remains readable.</noscript></section></article></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-2-reader.html">← Review Day 2</a><a href="index.html">Home</a><a href="day-5.html">Day 5: Spring Boot Fundamentals →</a></nav></main><footer>Java Backend Lab · Fictional banking examples for learning · Course baseline: Java 21 / Spring Boot 3.5</footer></body></html>

@@ -1,0 +1,421 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1520"><meta name="description" content="Detailed beginner-friendly banking lesson: DTOs + Validation, with Java examples, exercises, quizzes and React connections."><title>Day 9 — DTOs + Validation · Java Backend Lab</title><link rel="stylesheet" href="course.css"><script src="course.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="index.html"><b>JAVA</b> / BACKEND LAB</a><a href="index.html#curriculum">Course dashboard ↗</a></header><main id="main" class="wrap"><div class="hero"><div class="eyebrow">Day 09 / 30 · Banking project</div><h1>DTOs + Validation</h1><span class="badge" data-status-day="9">Available · Pending</span><p class="lead">Build backend confidence one idea, one request, and one banking example at a time.</p><p>3,456 words including examples · Read, practice, then check your understanding</p></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-8.html">← Day 8: Spring Architecture</a><a href="index.html">Home</a><span>Next: Day 10 · Coming soon</span></nav><details class="mobile-toc"><summary>Jump to a section</summary><a href="#your-destination-today">Your destination today</a><a href="#1-why-not-expose-the-domain-entity-automatically">1. Why not expose the domain/entity automatically?</a><a href="#2-java-records-fit-boundary-values">2. Java records fit boundary values</a><a href="#3-define-a-narrow-createaccountrequest">3. Define a narrow CreateAccountRequest</a><a href="#4-constraint-reference-with-precise-null-behavior">4. Constraint reference with precise null behavior</a><a href="#5-valid-at-the-controller-boundary">5. @Valid at the controller boundary</a><a href="#6-what-happens-on-invalid-input">6. What happens on invalid input?</a><a href="#7-complete-account-creation-mini-app">7. Complete account-creation mini app</a><a href="#8-transferrequest-structural-versus-business-validation">8. TransferRequest: structural versus business validation</a><a href="#9-bigdecimal-for-money">9. BigDecimal for money</a><a href="#10-nested-validation-and-enum-concepts">10. Nested validation and enum concepts</a><a href="#11-sensitive-fields-and-over-posting">11. Sensitive fields and over-posting</a><a href="#12-react-form-to-validated-dto">12. React form to validated DTO</a><a href="#13-common-mistakes-clinic">13. Common mistakes clinic</a><a href="#14-why-this-matters-in-real-work">14. Why this matters in real work</a><a href="#15-hands-on-lab-positive-and-negative-cases">15. Hands-on lab: positive and negative cases</a><a href="#16-knowledge-check">16. Knowledge check</a><a href="#17-cheat-sheet">17. Cheat sheet</a><a href="#further-reading">Further reading</a></details><div class="lesson-layout"><aside class="toc"><p class="eyebrow">In this lesson</p><nav aria-label="Table of contents"><a href="#your-destination-today">Your destination today</a><a href="#1-why-not-expose-the-domain-entity-automatically">1. Why not expose the domain/entity automatically?</a><a href="#2-java-records-fit-boundary-values">2. Java records fit boundary values</a><a href="#3-define-a-narrow-createaccountrequest">3. Define a narrow CreateAccountRequest</a><a href="#4-constraint-reference-with-precise-null-behavior">4. Constraint reference with precise null behavior</a><a href="#5-valid-at-the-controller-boundary">5. @Valid at the controller boundary</a><a href="#6-what-happens-on-invalid-input">6. What happens on invalid input?</a><a href="#7-complete-account-creation-mini-app">7. Complete account-creation mini app</a><a href="#8-transferrequest-structural-versus-business-validation">8. TransferRequest: structural versus business validation</a><a href="#9-bigdecimal-for-money">9. BigDecimal for money</a><a href="#10-nested-validation-and-enum-concepts">10. Nested validation and enum concepts</a><a href="#11-sensitive-fields-and-over-posting">11. Sensitive fields and over-posting</a><a href="#12-react-form-to-validated-dto">12. React form to validated DTO</a><a href="#13-common-mistakes-clinic">13. Common mistakes clinic</a><a href="#14-why-this-matters-in-real-work">14. Why this matters in real work</a><a href="#15-hands-on-lab-positive-and-negative-cases">15. Hands-on lab: positive and negative cases</a><a href="#16-knowledge-check">16. Knowledge check</a><a href="#17-cheat-sheet">17. Cheat sheet</a><a href="#further-reading">Further reading</a></nav></aside><article><h2 id="your-destination-today">Your destination today</h2>
+<p>Design request and response DTOs, validate incoming JSON before application behavior, and distinguish input constraints from business rules. Build an account-creation slice with records, Jakarta Validation, explicit mapping, and safe money handling. Allow 3–4 hours including the negative-case lab.</p>
+<p><strong>Prerequisites:</strong> Day 8 controller/service/repository boundaries, Day 7 RequestBody, and Java records/BigDecimal. Use Java 21 / Boot 3.5 with <code>spring-boot-starter-validation</code>. This remains fictional in-memory practice, without authentication or a durable ledger.</p>
+<h2 id="1-why-not-expose-the-domain-entity-automatically">1. Why not expose the domain/entity automatically?</h2>
+<p>An internal Customer might contain email, phone, identity-document data, passwordHash, riskRating, and internalNotes. Returning it directly can expose fields the client never needed. Accepting it directly can let a caller attempt to set <code>approved</code>, <code>balance</code>, or <code>role</code>.</p>
+<p>A DTO, Data Transfer Object, is a deliberately shaped boundary value. A <strong>request DTO</strong> contains client-writable fields for one operation. A <strong>response DTO</strong> contains approved output fields. A <strong>domain model</strong> represents application concepts and rules. A <strong>JPA entity</strong> later maps persistence state. They may have overlapping fields, but their responsibilities are different.</p>
+<pre><code class="language-text">React form → JSON → CreateAccountRequest (input contract)
+    → validation → service → Account (domain) → repository
+    → AccountResponse (output contract) → JSON → React
+</code></pre>
+<p>Explicit boundaries let a database column change without necessarily breaking React. They also make accidental exposure visible during review. A DTO is not a complete security system: authorization, deliberate mapping, and allowed-field policies still matter.</p>
+<h2 id="2-java-records-fit-boundary-values">2. Java records fit boundary values</h2>
+<pre><code class="language-java">public record AccountResponse(
+    Long id, String type, String balance, String currency, String status) {}
+</code></pre>
+<p>A record declares its components, canonical constructor, accessors, equals/hashCode, and toString. Accessors are <code>id()</code> rather than <code>getId()</code>. Component references cannot be reassigned; references to mutable lists/objects still require defensive design. Records are not automatically Spring beans and do not need <code>@Component</code>.</p>
+<p>Jackson in the course baseline can deserialize records using their constructor and serialize their components. Annotations on components express constraints, but they run only when validation is triggered. Constructing <code>new CreateAccountRequest(...)</code> in arbitrary code does not automatically run Bean Validation.</p>
+<p>Records are useful DTOs; they are not an instruction to turn every JPA entity into a record. Persistence libraries have their own entity requirements and lifecycle.</p>
+<h2 id="3-define-a-narrow-createaccountrequest">3. Define a narrow CreateAccountRequest</h2>
+<p>Create <code>domain/AccountType.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.domain;
+public enum AccountType { SAVINGS, CURRENT }
+</code></pre>
+<p>Create <code>dto/CreateAccountRequest.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.dto;
+
+import com.example.bank.domain.AccountType;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+public record CreateAccountRequest(
+    @NotNull(message = &quot;Customer ID is required&quot;)
+    @Positive(message = &quot;Customer ID must be positive&quot;)
+    Long customerId,
+
+    @NotNull(message = &quot;Account type is required&quot;)
+    AccountType type,
+
+    @NotBlank(message = &quot;Nickname is required&quot;)
+    @Size(max = 40, message = &quot;Nickname must be at most 40 characters&quot;)
+    String nickname
+) {}
+</code></pre>
+<p>The customer ID is client input in this fixture, not proof of ownership. Later the service verifies authenticated access. The enum restricts account type to known Java constants; it does not check whether a customer is eligible for that type. <code>"UNKNOWN"</code> generally fails JSON-to-enum binding before Bean Validation and produces 400. Null or a missing type is caught by NotNull after binding.</p>
+<p>Notice no <code>id</code>, <code>balance</code>, <code>approved</code>, or internal risk fields. The server chooses identity, currency policy, zero opening balance, and status. Accepting those fields from a creation form would blur who controls bank state.</p>
+<h2 id="4-constraint-reference-with-precise-null-behavior">4. Constraint reference with precise null behavior</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Annotation</th>
+<th>Suitable target</th>
+<th>Meaning</th>
+<th>Null behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>@NotNull</code></td>
+<td>Any reference</td>
+<td>Must be present/non-null</td>
+<td>Rejects null</td>
+</tr>
+<tr>
+<td><code>@NotBlank</code></td>
+<td>String</td>
+<td>Contains a non-whitespace character</td>
+<td>Rejects null</td>
+</tr>
+<tr>
+<td><code>@Positive</code></td>
+<td>Numeric value</td>
+<td>Strictly greater than zero</td>
+<td>Null valid; pair with NotNull</td>
+</tr>
+<tr>
+<td><code>@PositiveOrZero</code></td>
+<td>Numeric value</td>
+<td>Zero or positive</td>
+<td>Null valid; pair with NotNull</td>
+</tr>
+<tr>
+<td><code>@Size</code></td>
+<td>String/collection/map/array</td>
+<td>Bounds length/size</td>
+<td>Null valid</td>
+</tr>
+<tr>
+<td><code>@Email</code></td>
+<td>String</td>
+<td>Email syntax constraint</td>
+<td>Null valid; pair with NotBlank if required</td>
+</tr>
+<tr>
+<td><code>@Valid</code></td>
+<td>Nested value / bound input</td>
+<td>Cascade/trigger validation</td>
+<td>Does not itself require non-null</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>@Size(min=2,max=80)</code> bounds a name's length; it does not prove it is a real legal name. <code>@Email</code> checks syntax according to the provider, not mailbox ownership or deliverability. <code>@Positive</code> works on BigDecimal but does not check currency precision. <code>@PositiveOrZero</code> is appropriate for a server-side balance invariant, not permission for clients to set balances.</p>
+<pre><code class="language-java">public record CreateCustomerRequest(
+    @jakarta.validation.constraints.NotBlank
+    @jakarta.validation.constraints.Size(min = 2, max = 80)
+    String name,
+    @jakarta.validation.constraints.NotBlank
+    @jakarta.validation.constraints.Email
+    String email) {}
+</code></pre>
+<p>This focused snippet demonstrates constraints; the complete lab uses CreateAccountRequest. Friendly custom messages help clients explain corrections. Do not leak sensitive internal state in validation messages. Messages alone do not define an HTTP error format.</p>
+<h2 id="5-valid-at-the-controller-boundary">5. @Valid at the controller boundary</h2>
+<pre><code class="language-java">@PostMapping
+public ResponseEntity&lt;AccountResponse&gt; create(
+    @Valid @RequestBody CreateAccountRequest request) {
+    Account account = service.create(request);
+    return ResponseEntity.created(URI.create(&quot;/api/accounts/&quot; + account.id()))
+        .body(AccountResponse.from(account));
+}
+</code></pre>
+<p>This is a focused method excerpt; the complete controller below supplies imports and fields. <code>@RequestBody</code> selects body binding. <code>@Valid</code> requests Bean Validation of the bound DTO. If component constraints fail, Spring rejects the request before invoking this method. A missing body, malformed JSON, wrong enum string, and valid JSON with invalid fields fail at different stages, even though they commonly result in 400.</p>
+<p>For ordinary DTO argument validation, Spring raises MethodArgumentNotValidException. Framework versions with built-in method validation can raise HandlerMethodValidationException for other signatures. Do not assume every 400 has the same exception class. Day 10 will centralize safe formatting for these failure categories.</p>
+<h2 id="6-what-happens-on-invalid-input">6. What happens on invalid input?</h2>
+<pre><code class="language-http">POST /api/accounts HTTP/1.1
+Content-Type: application/json
+
+{&quot;customerId&quot;:-7,&quot;type&quot;:null,&quot;nickname&quot;:&quot;   &quot;}
+</code></pre>
+<p>Deserialization can create the record because these values have the right basic JSON types. Bean Validation then reports a nonpositive customer ID, missing type, and blank nickname. The controller body and service creation are not invoked. No ID should be allocated and no account inserted.</p>
+<pre><code class="language-http">HTTP/1.1 400 Bad Request
+</code></pre>
+<p>The baseline framework returns an error response, but its exact body depends on Boot configuration, exception handling, and content negotiation. Do not promise a field-errors array without implementing it. A future standardized contract could look like:</p>
+<pre><code class="language-json">{
+  &quot;code&quot;: &quot;VALIDATION_FAILED&quot;,
+  &quot;errors&quot;: [
+    {&quot;field&quot;:&quot;customerId&quot;,&quot;message&quot;:&quot;Customer ID must be positive&quot;},
+    {&quot;field&quot;:&quot;nickname&quot;,&quot;message&quot;:&quot;Nickname is required&quot;}
+  ]
+}
+</code></pre>
+<p>This JSON is a <strong>target contract for Day 10</strong>, not the current mini app's guaranteed response. React can initially show a generic invalid-input message based on 400, then map structured field errors after the server actually implements that contract. Malformed JSON cannot always be mapped to a DTO field neatly.</p>
+<h2 id="7-complete-account-creation-mini-app">7. Complete account-creation mini app</h2>
+<p>These files form a complete replacement account slice. Keep BankingApplication and unrelated routes. Replace Day 8 Account.java, AccountRepository, InMemoryAccountRepository, AccountService, AccountResponse, and AccountController with these versions. Keep AccountNotFoundException from Day 8 and add the enum/request above. The expanded Account record means Day 8 transfer-preview code must be adapted if you retain it; this slice focuses only on account creation/read.</p>
+<p>Create <code>domain/Account.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.domain;
+import java.math.BigDecimal;
+
+public record Account(
+    Long id, Long customerId, AccountType type, String nickname,
+    BigDecimal balance, String currency, String status) {}
+</code></pre>
+<p>Create <code>dto/AccountResponse.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.dto;
+import com.example.bank.domain.Account;
+
+public record AccountResponse(
+    Long id, String type, String nickname,
+    String balance, String currency, String status) {
+    public static AccountResponse from(Account account) {
+        return new AccountResponse(account.id(), account.type().name(),
+            account.nickname(), account.balance().toPlainString(),
+            account.currency(), account.status());
+    }
+}
+</code></pre>
+<p>This mapper is explicit: internal customer linkage is omitted, type becomes a documented string, and balance becomes a decimal string. No mapping framework is required for six fields. A separate mapper class may become useful as mappings grow.</p>
+<p>Create <code>repository/AccountRepository.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.repository;
+import com.example.bank.domain.Account;
+import java.util.Optional;
+
+public interface AccountRepository {
+    long nextId();
+    Account save(Account account);
+    Optional&lt;Account&gt; findById(Long id);
+}
+</code></pre>
+<p>Create <code>repository/InMemoryAccountRepository.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.repository;
+
+import com.example.bank.domain.Account;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class InMemoryAccountRepository implements AccountRepository {
+    private final AtomicLong sequence = new AtomicLong(100);
+    private final ConcurrentHashMap&lt;Long, Account&gt; data = new ConcurrentHashMap&lt;&gt;();
+
+    @Override
+    public long nextId() { return sequence.incrementAndGet(); }
+
+    @Override
+    public Account save(Account account) {
+        data.put(account.id(), account);
+        return account;
+    }
+
+    @Override
+    public Optional&lt;Account&gt; findById(Long id) {
+        return Optional.ofNullable(data.get(id));
+    }
+}
+</code></pre>
+<p>AtomicLong allocates distinct IDs within this one process. ConcurrentHashMap supports concurrent map operations. Neither supplies a durable transaction, cross-instance uniqueness, or crash recovery. A database eventually owns durable identity/constraints. Gaps in an ID sequence are normal and are not evidence of missing money.</p>
+<p>Create <code>service/AccountService.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.service;
+
+import com.example.bank.domain.Account;
+import com.example.bank.dto.CreateAccountRequest;
+import com.example.bank.exception.AccountNotFoundException;
+import com.example.bank.repository.AccountRepository;
+import java.math.BigDecimal;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AccountService {
+    private final AccountRepository repository;
+    public AccountService(AccountRepository repository) {
+        this.repository = repository;
+    }
+
+    public Account create(CreateAccountRequest request) {
+        // Fictional customer registry: only customer 7 exists in this exercise.
+        if (!Long.valueOf(7).equals(request.customerId())) {
+            throw new IllegalArgumentException(&quot;Customer is not eligible for this demo&quot;);
+        }
+        Account account = new Account(repository.nextId(), request.customerId(),
+            request.type(), request.nickname().trim(),
+            new BigDecimal(&quot;0.00&quot;), &quot;INR&quot;, &quot;ACTIVE&quot;);
+        return repository.save(account);
+    }
+
+    public Account get(Long id) {
+        return repository.findById(id)
+            .orElseThrow(() -&gt; new AccountNotFoundException(id));
+    }
+}
+</code></pre>
+<p>The service accepts a request DTO as a pragmatic small-app choice. A more independent application boundary can map into <code>CreateAccountCommand</code> first. The service owns opening balance/currency/status, while validation annotations guard the HTTP input shape. Direct callers still need a valid command; annotations don't run automatically on arbitrary method calls.</p>
+<p>Create <code>controller/AccountController.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import com.example.bank.dto.AccountResponse;
+import com.example.bank.dto.CreateAccountRequest;
+import com.example.bank.exception.AccountNotFoundException;
+import com.example.bank.service.AccountService;
+import jakarta.validation.Valid;
+import java.net.URI;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/accounts&quot;)
+public class AccountController {
+    private final AccountService service;
+    public AccountController(AccountService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public ResponseEntity&lt;AccountResponse&gt; create(
+        @Valid @RequestBody CreateAccountRequest request) {
+        try {
+            var account = service.create(request);
+            return ResponseEntity.created(URI.create(&quot;/api/accounts/&quot; + account.id()))
+                .body(AccountResponse.from(account));
+        } catch (IllegalArgumentException ex) {
+            // Demo eligibility failure; Day 10 adds specific exceptions/formatting.
+            return ResponseEntity.badRequest().build();
+        }
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;AccountResponse&gt; get(@PathVariable(&quot;id&quot;) Long id) {
+        try {
+            return ResponseEntity.ok(AccountResponse.from(service.get(id)));
+        } catch (AccountNotFoundException ex) {
+            return ResponseEntity.notFound().build();
+        }
+    }
+}
+</code></pre>
+<p>This local catch handles one known demonstration business failure. Do not generalize it into catch-all validation handling. Input constraint failures occur before this method body. A production API would define a specific eligibility exception and suitable documented status, and centralize translation on Day 10.</p>
+<pre><code class="language-http">POST /api/accounts HTTP/1.1
+Content-Type: application/json
+
+{&quot;customerId&quot;:7,&quot;type&quot;:&quot;SAVINGS&quot;,&quot;nickname&quot;:&quot;Travel fund&quot;}
+</code></pre>
+<pre><code class="language-http">HTTP/1.1 201 Created
+Location: /api/accounts/101
+Content-Type: application/json
+
+{&quot;id&quot;:101,&quot;type&quot;:&quot;SAVINGS&quot;,&quot;nickname&quot;:&quot;Travel fund&quot;,&quot;balance&quot;:&quot;0.00&quot;,&quot;currency&quot;:&quot;INR&quot;,&quot;status&quot;:&quot;ACTIVE&quot;}
+</code></pre>
+<p>Your exact ID depends on previous successful creations in the process. Use the returned Location/ID rather than assuming 101.</p>
+<h2 id="8-transferrequest-structural-versus-business-validation">8. TransferRequest: structural versus business validation</h2>
+<p>Create this DTO as a next-step contract; it is not a promise that a transfer execution endpoint exists in this mini app.</p>
+<pre><code class="language-java">package com.example.bank.dto;
+
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+
+public record TransferRequest(
+    @NotNull @Positive Long fromAccountId,
+    @NotNull @Positive Long toAccountId,
+    @NotNull @Positive
+    @Digits(integer = 12, fraction = 2)
+    BigDecimal amount,
+    @NotBlank @Pattern(regexp = &quot;INR&quot;) String currency,
+    @Size(max = 140) String reference
+) {}
+</code></pre>
+<p>NotNull + Positive rejects missing, zero, and negative values. Digits bounds decimal precision for this INR-only example. Pattern restricts currency rather than accepting every three-letter string. A multi-currency service must define supported codes and each currency's precision; two fraction digits is not universal. Optional reference can be null; Size only bounds it when present.</p>
+<p><strong>Input validation:</strong> IDs supplied and positive, amount positive, precision supported, strings within bounds. <strong>Business validation:</strong> accounts exist and are active, caller owns source, currencies match, sufficient available funds, daily limit remaining, account IDs differ. Cross-field “from differs from to” can be a custom class-level constraint, but still does not replace stateful service checks.</p>
+<p>A positive amount of 5000 passes input validation even if balance is 3000. Only a service with access to authoritative state can reject insufficient funds. Recheck at execution under concurrency/transaction protection; a prior preview is not a reservation.</p>
+<h2 id="9-bigdecimal-for-money">9. BigDecimal for money</h2>
+<pre><code class="language-java">BigDecimal amount = new BigDecimal(&quot;5000.00&quot;);
+BigDecimal balance = new BigDecimal(&quot;50000.00&quot;);
+
+if (balance.compareTo(amount) &gt;= 0) {
+    BigDecimal remaining = balance.subtract(amount);
+}
+</code></pre>
+<p>Import <code>java.math.BigDecimal</code> in the file using this fragment. BigDecimal methods return new values; <code>balance.subtract(amount)</code> does not mutate balance. <code>compareTo</code> compares numeric value. <code>equals</code> also compares scale: <code>new BigDecimal("10.0")</code> is not equals to <code>new BigDecimal("10.00")</code>, though compareTo returns zero.</p>
+<pre><code class="language-java">BigDecimal normalized = amount.setScale(2, java.math.RoundingMode.UNNECESSARY);
+</code></pre>
+<p>UNNECESSARY rejects values that would require rounding. Where rounding is legitimate, specify the bank's policy explicitly instead of choosing a random mode. Currency conversion/fees also need clear rounding points. Frontend number arithmetic uses binary floating point; preserve decimal strings in form state/payload when practical and use a documented exact-decimal server contract. Jackson in this baseline can bind decimal strings into BigDecimal; stricter coercion settings can change that behavior, so the API and tests must agree.</p>
+<h2 id="10-nested-validation-and-enum-concepts">10. Nested validation and enum concepts</h2>
+<pre><code class="language-java">public record AddressRequest(
+    @jakarta.validation.constraints.NotBlank String line1,
+    @jakarta.validation.constraints.NotBlank String city,
+    @jakarta.validation.constraints.Pattern(regexp = &quot;[0-9]{6}&quot;) String postalCode) {}
+
+public record CustomerWithAddressRequest(
+    @jakarta.validation.constraints.NotBlank String name,
+    @jakarta.validation.constraints.NotNull
+    @jakarta.validation.Valid AddressRequest address) {}
+</code></pre>
+<p>These types go in separate files if public. Valid cascades into AddressRequest; NotNull requires the nested object. Pattern permits null, so add NotBlank if postalCode must be present. The six-digit pattern is a local teaching contract, not a worldwide address policy.</p>
+<p>Enums constrain known values but need eligibility rules separately. NotBlank is unsuitable for an enum object; use NotNull. A String field may use Pattern or a custom constraint, while a typed enum catches unrecognized names during deserialization. Neither tells you whether that account type is allowed for this customer today.</p>
+<h2 id="11-sensitive-fields-and-over-posting">11. Sensitive fields and over-posting</h2>
+<pre><code class="language-json">{
+  &quot;customerId&quot;:7,
+  &quot;type&quot;:&quot;SAVINGS&quot;,
+  &quot;nickname&quot;:&quot;Travel fund&quot;,
+  &quot;balance&quot;:&quot;999999.00&quot;,
+  &quot;approved&quot;:true
+}
+</code></pre>
+<p>A naive domain-binding controller could accept dangerous fields if they exist on its input model. Our request DTO has no balance/approved fields and mapping explicitly constructs zero balance. Unknown JSON property handling depends on configuration; Boot may ignore unknown properties unless strict failure is enabled. Either way, the DTO cannot grant these omitted capabilities. Decide whether to reject unknown fields for your contract and test it.</p>
+<p>Returning a broad entity and relying on the frontend to hide fields is unsafe: anyone can inspect the network response. DTOs should omit password hashes, secret tokens, full identity documents, and internal risk notes. Masking a value is an explicit output decision; do not invent fake security by renaming a property.</p>
+<h2 id="12-react-form-to-validated-dto">12. React form to validated DTO</h2>
+<pre><code class="language-javascript">async function createAccount(form) {
+  const response = await fetch(&quot;/api/accounts&quot;, {
+    method: &quot;POST&quot;,
+    headers: { &quot;Content-Type&quot;: &quot;application/json&quot; },
+    body: JSON.stringify({
+      customerId: 7,
+      type: form.type,
+      nickname: form.nickname
+    })
+  });
+  if (response.status === 400) {
+    throw new Error(&quot;Check the account fields and customer eligibility&quot;);
+  }
+  if (!response.ok) throw new Error(`Create failed: ${response.status}`);
+  return response.json();
+}
+</code></pre>
+<p>The form should also validate for fast feedback, but the server repeats checks because clients are untrusted. Don't send every component state field with <code>JSON.stringify(form)</code> unless every field is intentionally part of the request contract. Server validation messages will become field-specific after Day 10's response formatting; this example avoids assuming that format already exists.</p>
+<p>For a transfer form, keep <code>amount</code> as text such as <code>"5000.00"</code> until validation/serialization. Do not turn it into a floating-point number, subtract locally, and claim a settled balance. The response from the bank is authoritative.</p>
+<h2 id="13-common-mistakes-clinic">13. Common mistakes clinic</h2>
+<ul>
+<li><strong>Annotations without Valid:</strong> constraints may never run at the HTTP boundary.</li>
+<li><strong>Valid without a validation provider/starter:</strong> add the compatible validation dependency.</li>
+<li><strong>javax.validation mixed with jakarta.validation:</strong> Boot 3 uses Jakarta imports; use one coherent baseline.</li>
+<li><strong>Positive alone on a nullable amount:</strong> null passes; pair with NotNull.</li>
+<li><strong>NotBlank on enum/number:</strong> use an annotation suitable for the type.</li>
+<li><strong>Email proves ownership:</strong> syntax validation does not verify mailbox control.</li>
+<li><strong>DTO treated as authorization:</strong> allowed shape does not grant access.</li>
+<li><strong>Returning entities blindly:</strong> internal fields/relationships can escape.</li>
+<li><strong>Money stored as double:</strong> choose BigDecimal and clear precision/rounding policy.</li>
+<li><strong>Assuming default field-error JSON:</strong> implement and test the format first.</li>
+<li><strong>Nested object lacks Valid:</strong> its component constraints may not cascade.</li>
+</ul>
+<h2 id="14-why-this-matters-in-real-work">14. Why this matters in real work</h2>
+<p>DTOs make contracts reviewable and limit accidental coupling/exposure. Validation rejects bad input early and consistently, while services protect state-dependent invariants. Exact money representation prevents rounding surprises. This separation helps React forms explain errors without giving frontend code authority over bank rules.</p>
+<h2 id="15-hands-on-lab-positive-and-negative-cases">15. Hands-on lab: positive and negative cases</h2>
+<ol>
+<li>Build the complete replacement account slice with the validation starter.</li>
+<li>Create a valid account, GET the returned Location, and verify opening balance is 0.00.</li>
+<li>Send missing customerId, negative customerId, null type, unknown enum, blank nickname, and 41-character nickname; expect 400.</li>
+<li>Send malformed JSON; identify why it fails before DTO validation.</li>
+<li>Send customerId 8 with otherwise valid fields; explain the difference between valid input and failed demo eligibility.</li>
+<li>Attempt over-posting balance/approved fields. Verify the returned/stored account still has the server-selected balance/status.</li>
+<li>Add a required nested address to a customer request and prove both missing address and blank city are rejected.</li>
+<li>Record whether your default errors include field details; do not alter React to expect details you did not observe.</li>
+</ol>
+<p><strong>Acceptance criteria:</strong> invalid requests create no accounts, response fields are explicit, server-owned balance cannot be set by input, enum/type mismatches are handled, and validation versus business rules can be explained separately. Do not log complete request bodies containing personal/financial data while debugging.</p>
+<p><strong>Challenge:</strong> define a multi-currency TransferRequest and a service policy that validates supported currency/decimal places. Test 0, negative, null, 12.345 INR, same account IDs, inactive account, and insufficient funds. Explain which cases can be rejected without a database lookup and which require authoritative account state. Do not execute actual transfers in this lab.</p>
+<h2 id="16-knowledge-check">16. Knowledge check</h2>
+<details><summary>1. Does Positive reject null?</summary><p>No. Combine it with NotNull for a required numeric field.</p></details>
+<details><summary>2. Does an annotation run when you call new on a DTO?</summary><p>Not by itself. A validation entry point, such as Valid on a bound controller argument or an explicit Validator, must trigger it.</p></details>
+<details><summary>3. Why separate request and response DTOs?</summary><p>Clients can write only permitted input fields, while output exposes only deliberate safe fields. Their shapes can differ.</p></details>
+<details><summary>4. Is sufficient balance a Bean Validation field constraint?</summary><p>It requires current account state and belongs in business behavior, rechecked safely at execution.</p></details>
+<details><summary>5. Why use compareTo for BigDecimal comparisons?</summary><p>It compares numerical value independently of scale; equals also checks scale.</p></details>
+<details><summary>6. Does Valid make a nested address required?</summary><p>No. It cascades validation when an object is present. Add NotNull to require the object.</p></details>
+<details><summary>7. What happens when the enum JSON is UNKNOWN?</summary><p>Binding normally fails before ordinary field validation, yielding a request error. Exact formatting is a separate exception-handling concern.</p></details>
+
+<h2 id="17-cheat-sheet">17. Cheat sheet</h2>
+<p>Request DTO = permitted input. Response DTO = approved output. Domain/entity = internal application/persistence concepts. Records are concise boundary values. Jakarta constraints + Valid + provider trigger input checks. NotNull pairs with nullable numeric constraints. Business rules require service/state. BigDecimal handles decimals; choose rounding and wire format deliberately. Next: Day 10 will give validation and business failures a consistent, safe API error format.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-validation.html">Spring MVC validation flow</a></li>
+<li><a href="https://jakarta.ee/specifications/bean-validation/3.0/jakarta-bean-validation-spec-3.0.html">Jakarta Bean Validation specification</a></li>
+<li><a href="https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/math/BigDecimal.html">Java BigDecimal API</a></li>
+</ul><section class="finish" aria-labelledby="finish-heading"><h2 id="finish-heading">You reached the end of Day 9</h2><p>Try the lab and knowledge check, then finish when you’re ready. Completion is saved only in this browser; it does not submit anything or move money.</p><div class="actions"><button type="button" class="primary" data-finish-day="9">Finish lesson · Mark complete</button><button type="button" data-reset-day="9">Mark pending again</button></div><p id="completion-message" class="completion-message" role="status"></p><noscript>Enable JavaScript to save completion. All lesson content remains readable.</noscript></section></article></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-8.html">← Day 8: Spring Architecture</a><a href="index.html">Home</a><span>Next: Day 10 · Coming soon</span></nav></main><footer>Java Backend Lab · Fictional banking examples for learning · Course baseline: Java 21 / Spring Boot 3.5</footer></body></html>

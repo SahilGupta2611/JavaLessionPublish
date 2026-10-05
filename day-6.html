@@ -1,0 +1,248 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#0b1520"><meta name="description" content="Detailed beginner-friendly banking lesson: REST Controllers, with Java examples, exercises, quizzes and React connections."><title>Day 6 — REST Controllers · Java Backend Lab</title><link rel="stylesheet" href="course.css"><script src="course.js" defer></script></head><body><a class="skip" href="#main">Skip to content</a><header><a class="brand" href="index.html"><b>JAVA</b> / BACKEND LAB</a><a href="index.html#curriculum">Course dashboard ↗</a></header><main id="main" class="wrap"><div class="hero"><div class="eyebrow">Day 06 / 30 · Banking project</div><h1>REST Controllers</h1><span class="badge" data-status-day="6">Available · Pending</span><p class="lead">Build backend confidence one idea, one request, and one banking example at a time.</p><p>2,551 words including examples · Read, practice, then check your understanding</p></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-5.html">← Day 5: Spring Boot Fundamentals</a><a href="index.html">Home</a><a href="day-7.html">Day 7: Building CRUD APIs →</a></nav><details class="mobile-toc"><summary>Jump to a section</summary><a href="#your-destination-today">Your destination today</a><a href="#1-the-controller-is-an-http-adapter">1. The controller is an HTTP adapter</a><a href="#2-restcontroller-deeply-explained">2. @RestController, deeply explained</a><a href="#3-java-values-become-json-through-jackson">3. Java values become JSON through Jackson</a><a href="#4-complete-account-read-controller">4. Complete account read controller</a><a href="#5-path-variables-versus-query-parameters">5. Path variables versus query parameters</a><a href="#6-defaults-and-optional-parameters">6. Defaults and optional parameters</a><a href="#7-customer-and-nested-transaction-examples">7. Customer and nested transaction examples</a><a href="#8-responseentity-is-the-whole-response-envelope">8. ResponseEntity is the whole response envelope</a><a href="#9-test-the-contract-from-outside-java">9. Test the contract from outside Java</a><a href="#10-what-belongs-in-a-controller">10. What belongs in a controller?</a><a href="#11-common-mistakes-and-diagnoses">11. Common mistakes and diagnoses</a><a href="#12-why-this-matters-in-backend-work">12. Why this matters in backend work</a><a href="#13-hands-on-lab-read-only-banking-dashboard">13. Hands-on lab: read-only banking dashboard</a><a href="#14-knowledge-check">14. Knowledge check</a><a href="#15-cheat-sheet">15. Cheat sheet</a><a href="#further-reading">Further reading</a></details><div class="lesson-layout"><aside class="toc"><p class="eyebrow">In this lesson</p><nav aria-label="Table of contents"><a href="#your-destination-today">Your destination today</a><a href="#1-the-controller-is-an-http-adapter">1. The controller is an HTTP adapter</a><a href="#2-restcontroller-deeply-explained">2. @RestController, deeply explained</a><a href="#3-java-values-become-json-through-jackson">3. Java values become JSON through Jackson</a><a href="#4-complete-account-read-controller">4. Complete account read controller</a><a href="#5-path-variables-versus-query-parameters">5. Path variables versus query parameters</a><a href="#6-defaults-and-optional-parameters">6. Defaults and optional parameters</a><a href="#7-customer-and-nested-transaction-examples">7. Customer and nested transaction examples</a><a href="#8-responseentity-is-the-whole-response-envelope">8. ResponseEntity is the whole response envelope</a><a href="#9-test-the-contract-from-outside-java">9. Test the contract from outside Java</a><a href="#10-what-belongs-in-a-controller">10. What belongs in a controller?</a><a href="#11-common-mistakes-and-diagnoses">11. Common mistakes and diagnoses</a><a href="#12-why-this-matters-in-backend-work">12. Why this matters in backend work</a><a href="#13-hands-on-lab-read-only-banking-dashboard">13. Hands-on lab: read-only banking dashboard</a><a href="#14-knowledge-check">14. Knowledge check</a><a href="#15-cheat-sheet">15. Cheat sheet</a><a href="#further-reading">Further reading</a></nav></aside><article><h2 id="your-destination-today">Your destination today</h2>
+<p>Build typed, predictable GET endpoints for accounts, customers, and transactions. Explain routing annotations, path and query binding, JSON responses, and ResponseEntity. Understand where a controller's responsibility ends. Allow 2–3 hours with the lab.</p>
+<p><strong>Prerequisites:</strong> a running Java 21 / Spring Boot 3.5 banking skeleton from Day 5, plus Day 4 methods/status codes and Day 3 List/Optional. We still use sample data. There is no database or authentication implementation; endpoint IDs are not permission checks.</p>
+<h2 id="1-the-controller-is-an-http-adapter">1. The controller is an HTTP adapter</h2>
+<p>A React component should not implement the bank's ledger. Similarly, a controller should not own every banking rule. Its job is to accept HTTP input, call application behavior, and translate the result into an HTTP response.</p>
+<pre><code class="language-text">GET /api/accounts/101
+    → Spring MVC selects controller method
+    → converts &quot;101&quot; to Long
+    → method retrieves a result
+    → response converter serializes Java value
+    → 200 + JSON back to React
+</code></pre>
+<p>Spring MVC uses a dispatcher to route requests. You register mappings with annotations. The method name <code>get</code> has no special routing power; the annotation's method/path combination selects it. Many requests can call the same controller instance concurrently, so avoid request-specific mutable fields.</p>
+<h2 id="2-restcontroller-deeply-explained">2. @RestController, deeply explained</h2>
+<p><code>@RestController</code> combines controller registration with response-body behavior. Spring discovers the class under the root package and treats returned values as HTTP bodies. A plain <code>@Controller</code> is commonly used for server-rendered views; without response-body behavior, a returned string may be interpreted as a view name. A REST controller returning a string returns text, while returning a record/map/list normally produces JSON when the JSON converter is available.</p>
+<pre><code class="language-java">@RestController
+@RequestMapping(&quot;/api/accounts&quot;)
+public class AccountController {
+    @GetMapping(&quot;/{id}&quot;)
+    public AccountResponse get(@PathVariable(&quot;id&quot;) Long id) {
+        return new AccountResponse(id, &quot;SAVINGS&quot;, &quot;50000.00&quot;, &quot;INR&quot;);
+    }
+}
+</code></pre>
+<p>This is a focused fragment; imports and a complete implementation follow below. <code>@RequestMapping</code> on the class provides the shared URL prefix. <code>@GetMapping</code> narrows the method to GET and adds the suffix. Together they match <code>/api/accounts/101</code>. <code>@PathVariable("id")</code> explicitly matches the placeholder, then Spring converts text to Long. Naming explicitly avoids relying on compiler parameter-name metadata.</p>
+<p>The example initially echoes any ID; that is useful for binding practice but not correct account lookup. The complete version returns 404 when the requested sample account does not exist.</p>
+<h2 id="3-java-values-become-json-through-jackson">3. Java values become JSON through Jackson</h2>
+<p>Create <code>domain/AccountResponse.java</code> under <code>com.example.bank</code> for today's read-model practice (Day 9 moves API models into <code>dto</code>):</p>
+<pre><code class="language-java">package com.example.bank.domain;
+
+public record AccountResponse(
+    Long id, Long customerId, String type,
+    String balance, String currency) {}
+</code></pre>
+<p>A record gives a constructor and accessors such as <code>id()</code> and <code>balance()</code>. In Boot 3's web setup Jackson reads the record components and writes JSON. It is not calling React and it is not returning JavaScript source.</p>
+<pre><code class="language-json">{
+  &quot;id&quot;: 101,
+  &quot;customerId&quot;: 7,
+  &quot;type&quot;: &quot;SAVINGS&quot;,
+  &quot;balance&quot;: &quot;50000.00&quot;,
+  &quot;currency&quot;: &quot;INR&quot;
+}
+</code></pre>
+<p>A <code>List&lt;AccountResponse&gt;</code> becomes a JSON array. Java property names influence the contract. Renaming <code>customerId</code> to <code>owner</code> changes what React receives unless you deliberately preserve mapping. Dates, enums, and money need documented formats. We use decimal strings for money responses and BigDecimal for arithmetic in later lessons. Do not build JSON by string concatenation: escaping and types are error-prone.</p>
+<h2 id="4-complete-account-read-controller">4. Complete account read controller</h2>
+<p>Each public type goes in its own file. This is a self-contained read example; remove conflicting Day 5 practice account routes if you added any. Keep BankInfoController.</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import com.example.bank.domain.AccountResponse;
+import java.util.List;
+import java.util.Map;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping(&quot;/api/accounts&quot;)
+public class AccountController {
+    private final Map&lt;Long, AccountResponse&gt; samples = Map.of(
+        101L, new AccountResponse(101L, 7L, &quot;SAVINGS&quot;, &quot;50000.00&quot;, &quot;INR&quot;),
+        102L, new AccountResponse(102L, 7L, &quot;CURRENT&quot;, &quot;20000.00&quot;, &quot;INR&quot;),
+        103L, new AccountResponse(103L, 8L, &quot;SAVINGS&quot;, &quot;8000.00&quot;, &quot;INR&quot;)
+    );
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;AccountResponse&gt; get(@PathVariable(&quot;id&quot;) Long id) {
+        AccountResponse account = samples.get(id);
+        if (account == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok()
+            .header(&quot;Cache-Control&quot;, &quot;no-store&quot;)
+            .body(account);
+    }
+
+    @GetMapping
+    public List&lt;AccountResponse&gt; list(
+        @RequestParam(name = &quot;type&quot;, required = false) String type,
+        @RequestParam(name = &quot;customerId&quot;, required = false) Long customerId) {
+        return samples.values().stream()
+            .filter(a -&gt; type == null || a.type().equalsIgnoreCase(type))
+            .filter(a -&gt; customerId == null || a.customerId().equals(customerId))
+            .sorted(java.util.Comparator.comparing(AccountResponse::id))
+            .toList();
+    }
+}
+</code></pre>
+<p>The <code>samples</code> field is fixed and immutable; it deliberately contains only learning data. Each request's parameters stay local. <code>Map.get</code> returns null when absent. <code>notFound().build()</code> produces 404 with no body here. <code>ok().header(...).body(account)</code> constructs a 200 response including a header and typed body.</p>
+<p><code>@GetMapping</code> without a suffix maps the collection path. <code>required=false</code> allows a missing filter, bound as null. A boxed <code>Long</code> can represent absence; primitive <code>long</code> cannot. The stream starts from all sample values, keeps matches, sorts by ID for deterministic output, and creates a list. An empty collection result is <code>200 []</code>, not automatically 404.</p>
+<p>This filtering accepts arbitrary type strings and produces an empty list when they do not match. If your contract requires invalid enum filters to produce 400, bind an enum or validate explicitly. Make that choice deliberate.</p>
+<h2 id="5-path-variables-versus-query-parameters">5. Path variables versus query parameters</h2>
+<pre><code class="language-text">GET /api/accounts/101                    → get(id=101)
+GET /api/accounts?type=SAVINGS           → list(type=&quot;SAVINGS&quot;, customerId=null)
+GET /api/accounts?customerId=7&amp;type=CURRENT → list(type=&quot;CURRENT&quot;, customerId=7)
+GET /api/accounts/not-a-number           → conversion error, normally 400
+GET /api/accounts/999                    → sample not present, 404
+</code></pre>
+<p>The first uses identity; the next two refine a collection. Conversion errors happen before your method body can perform a lookup. Missing a required query parameter is also a request error. A missing optional value is different from an empty value: <code>?type=</code> is present with an empty string and your API must decide whether to reject or treat it as absent.</p>
+<p>Do not accept account ownership merely because <code>customerId=7</code> was supplied. A malicious caller can change a query parameter. Later security derives the customer identity from authenticated context and checks access.</p>
+<h2 id="6-defaults-and-optional-parameters">6. Defaults and optional parameters</h2>
+<pre><code class="language-java">@GetMapping(&quot;/preview&quot;)
+public ResponseEntity&lt;List&lt;AccountResponse&gt;&gt; preview(
+    @RequestParam(name = &quot;limit&quot;, defaultValue = &quot;2&quot;) int limit) {
+    if (limit &lt; 1 || limit &gt; 20) {
+        return ResponseEntity.badRequest().build();
+    }
+    return ResponseEntity.ok(samples.values().stream()
+        .sorted(java.util.Comparator.comparing(AccountResponse::id))
+        .limit(limit).toList());
+}
+</code></pre>
+<p>Add this method inside AccountController. <code>defaultValue="2"</code> supplies a fallback for a missing or empty parameter. Spring converts it to int. Explicit range checking prevents negative stream limits and excessive responses. This is a small preview limit, not database pagination; page/size with Spring Data comes on Day 14.</p>
+<p>Spring can also bind <code>Optional&lt;String&gt;</code> query parameters, but null with an explicit <code>required=false</code> is sufficient here. Choose one convention. Do not mistake Optional for validation: <code>Optional.of("invalid")</code> is still invalid input.</p>
+<h2 id="7-customer-and-nested-transaction-examples">7. Customer and nested transaction examples</h2>
+<p>Create <code>domain/CustomerResponse.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.domain;
+public record CustomerResponse(Long id, String name) {}
+</code></pre>
+<p>Create <code>controller/CustomerController.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import com.example.bank.domain.CustomerResponse;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/customers&quot;)
+public class CustomerController {
+    @GetMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;CustomerResponse&gt; get(@PathVariable(&quot;id&quot;) Long id) {
+        if (!id.equals(7L)) return ResponseEntity.notFound().build();
+        return ResponseEntity.ok(new CustomerResponse(7L, &quot;Asha Rao&quot;));
+    }
+}
+</code></pre>
+<p>Wildcard imports are used here to keep the small example readable; your IDE can expand them. The response intentionally contains a profile summary, not passwords or identity documents.</p>
+<p>Create <code>domain/TransactionResponse.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.domain;
+public record TransactionResponse(
+    Long id, Long accountId, String type, String amount) {}
+</code></pre>
+<p>Create <code>controller/TransactionController.java</code>:</p>
+<pre><code class="language-java">package com.example.bank.controller;
+
+import com.example.bank.domain.TransactionResponse;
+import java.util.List;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/accounts/{accountId}/transactions&quot;)
+public class TransactionController {
+    @GetMapping
+    public ResponseEntity&lt;List&lt;TransactionResponse&gt;&gt; list(
+        @PathVariable(&quot;accountId&quot;) Long accountId,
+        @RequestParam(name = &quot;type&quot;, required = false) String type) {
+        if (!accountId.equals(101L)) return ResponseEntity.notFound().build();
+        List&lt;TransactionResponse&gt; transactions = List.of(
+            new TransactionResponse(3001L, 101L, &quot;DEBIT&quot;, &quot;500.00&quot;),
+            new TransactionResponse(3002L, 101L, &quot;CREDIT&quot;, &quot;1000.00&quot;)
+        );
+        return ResponseEntity.ok(transactions.stream()
+            .filter(t -&gt; type == null || t.type().equalsIgnoreCase(type))
+            .toList());
+    }
+}
+</code></pre>
+<p>The nested path communicates “transactions belonging to this account.” This controller's practice fixture has only account 101; the lab extends it. Returning 404 for an unknown parent is different from returning an empty list for a known account with no matching transactions. A future <code>/api/transactions/{id}</code> lookup must also verify ownership rather than expose any globally known transaction.</p>
+<h2 id="8-responseentity-is-the-whole-response-envelope">8. ResponseEntity is the whole response envelope</h2>
+<p>Returning <code>AccountResponse</code> directly normally yields 200 and converter-selected headers. Returning <code>ResponseEntity&lt;AccountResponse&gt;</code> lets you explicitly choose status, headers, and body. Generic type <code>AccountResponse</code> describes the body type, not the status.</p>
+<pre><code class="language-java">ResponseEntity.ok(account);                 // 200 with body
+ResponseEntity.notFound().build();          // 404, no body here
+ResponseEntity.badRequest().build();        // 400, no body here
+ResponseEntity.noContent().build();         // 204, no body
+</code></pre>
+<p>These are usage fragments, not statements to paste at class scope. <code>ResponseEntity</code> is immutable after construction. Do not manually return an HTTP status line as a string: that would be text in a body, not the actual status. A custom response header must be meaningful; inventing <code>X-Success: true</code> is redundant with a successful status.</p>
+<h2 id="9-test-the-contract-from-outside-java">9. Test the contract from outside Java</h2>
+<pre><code class="language-shell">curl -i http://localhost:8080/api/accounts/101
+curl -i 'http://localhost:8080/api/accounts?customerId=7&amp;type=SAVINGS'
+curl -i 'http://localhost:8080/api/accounts/preview?limit=1'
+curl -i 'http://localhost:8080/api/accounts/101/transactions?type=DEBIT'
+curl -i http://localhost:8080/api/accounts/999
+</code></pre>
+<p>Quote URLs containing <code>&amp;</code> in your shell. In Postman, choose GET, enter the URL, use its Params table for filters, then inspect status, headers, and body separately. No request JSON body is needed for these GETs.</p>
+<pre><code class="language-javascript">async function loadAccounts(customerId, type) {
+  const params = new URLSearchParams({ customerId: String(customerId) });
+  if (type) params.set(&quot;type&quot;, type);
+  const response = await fetch(`/api/accounts?${params}`);
+  if (!response.ok) throw new Error(`Accounts failed: ${response.status}`);
+  return response.json();
+}
+</code></pre>
+<p>React receives an array, so map it to cards with stable <code>account.id</code> keys. Use loading/error state while the promise is pending. With separate localhost ports, use your React dev proxy or configured backend origin. A CORS issue is not fixed by renaming a Java method.</p>
+<pre><code class="language-javascript">async function loadAccount(id) {
+  const response = await fetch(`/api/accounts/${encodeURIComponent(id)}`);
+  if (response.status === 404) return null;
+  if (!response.ok) throw new Error(`Account failed: ${response.status}`);
+  return response.json();
+}
+</code></pre>
+<p>This function avoids parsing the empty 404 from our example. Returning null is a client convention you choose; the server's contract remains a 404 response.</p>
+<h2 id="10-what-belongs-in-a-controller">10. What belongs in a controller?</h2>
+<p>Belongs here: method/path mapping, HTTP input binding, validation entry points, invoking a service, choosing status and safe response fields. Does not belong here: implementing interest calculations, daily transfer limits, ledger updates, SQL, or durable retry handling.</p>
+<p>Our sample maps are intentionally a temporary teaching shortcut. Day 8 removes data access and business logic from controllers. The progression lets you understand routing first instead of hiding it behind unfamiliar layers. A controller should normally delegate to a service and remain readable enough that a reviewer can see the endpoint contract at a glance.</p>
+<h2 id="11-common-mistakes-and-diagnoses">11. Common mistakes and diagnoses</h2>
+<ul>
+<li><strong>Returning a JSON string:</strong> use a typed record; otherwise escaping and Content-Type can surprise clients.</li>
+<li><strong>Wrong placeholder name:</strong> <code>/accounts/{id}</code> must match <code>@PathVariable("id")</code>.</li>
+<li><strong>Two identical GET mappings:</strong> startup can fail with an ambiguous mapping. Rename a route or consolidate methods.</li>
+<li><strong>Optional primitive query field:</strong> use a boxed type, Optional, or default value when absence is meaningful.</li>
+<li><strong>Missing converter/dependency:</strong> verify the web starter and compatible Boot baseline before writing manual JSON.</li>
+<li><strong>Everything returns 200:</strong> an unknown individual resource should use an appropriate error status.</li>
+<li><strong>404 for every empty list:</strong> a collection can validly be empty.</li>
+<li><strong>Controller stores request state:</strong> shared fields can mix users across requests.</li>
+<li><strong>Adding broad @CrossOrigin as a security fix:</strong> CORS and authentication solve different problems.</li>
+</ul>
+<h2 id="12-why-this-matters-in-backend-work">12. Why this matters in backend work</h2>
+<p>Controllers are where frontend expectations meet Java types. Explicit binding and consistent responses prevent integration surprises. Correct empty/not-found behavior helps the UI choose between “no transactions yet” and “account does not exist.” Small HTTP adapters also make later architecture refactoring possible without changing public URLs.</p>
+<h2 id="13-hands-on-lab-read-only-banking-dashboard">13. Hands-on lab: read-only banking dashboard</h2>
+<ol>
+<li>Create all record/controller files above and run the app.</li>
+<li>Verify account 101 returns 200 and account 999 returns 404.</li>
+<li>Verify customer 7 has two accounts, and type SAVINGS narrows it to one.</li>
+<li>Verify an unmatched filter returns <code>[]</code> with 200.</li>
+<li>Test <code>limit=0</code> and a non-numeric account ID; predict the status before sending.</li>
+<li>Extend the transaction fixture with account 102 and a CREDIT entry. Keep unknown parent IDs at 404.</li>
+<li>Call your endpoints from a small React component with loading, error, not-found, and empty states.</li>
+</ol>
+<p><strong>Acceptance criteria:</strong> distinct collection/item routes, explicit path names, optional query filters, deterministic list order, no modifying GET, and no secrets in responses. Record a small table of requests, expected status, actual status, and response shape.</p>
+<p><strong>Challenge:</strong> add a <code>minAmount</code> decimal filter to the transaction endpoint. Convert using BigDecimal rather than <code>double</code>, reject a negative filter with 400, and compare using <code>compareTo</code>. Explain how this differs from authorizing a customer to see those transactions.</p>
+<h2 id="14-knowledge-check">14. Knowledge check</h2>
+<details><summary>1. Does the Java method name determine the URL?</summary><p>No. Mapping annotations determine the route and method. The method could be named differently without changing the HTTP contract.</p></details>
+<details><summary>2. What does RestController do to a returned record?</summary><p>It makes the return value a response body; a JSON message converter serializes its components into JSON.</p></details>
+<details><summary>3. What is the difference between a missing account and an empty transaction list?</summary><p>A missing individual/parent account can return 404. A known account with zero matching transactions returns a successful empty collection.</p></details>
+<details><summary>4. Why use ResponseEntity?</summary><p>It lets a method choose actual HTTP status, response headers, and typed body together.</p></details>
+<details><summary>5. Why is required=false alone unsuitable for a primitive Long alternative, long?</summary><p>A missing value needs a representable absence. A primitive cannot be null; use a default or boxed/optional type.</p></details>
+<details><summary>6. Is customerId supplied in a query proof of identity?</summary><p>No. It is untrusted client input. The server must enforce permissions using authenticated identity.</p></details>
+
+<h2 id="15-cheat-sheet">15. Cheat sheet</h2>
+<p><code>@RestController</code> = HTTP adapter with response-body semantics. Class <code>@RequestMapping</code> + method <code>@GetMapping</code> = full route. <code>@PathVariable</code> binds identity; <code>@RequestParam</code> binds retrieval options. Record/list → converter → JSON. ResponseEntity controls the envelope. Keep request state local. Next: create and change resources with POST, PUT, PATCH, and DELETE.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller.html">Spring MVC annotated controllers</a></li>
+<li><a href="https://docs.spring.io/spring-framework/reference/web/webmvc/mvc-controller/ann-methods/arguments.html">Spring MVC method arguments</a></li>
+</ul><section class="finish" aria-labelledby="finish-heading"><h2 id="finish-heading">You reached the end of Day 6</h2><p>Try the lab and knowledge check, then finish when you’re ready. Completion is saved only in this browser; it does not submit anything or move money.</p><div class="actions"><button type="button" class="primary" data-finish-day="6">Finish lesson · Mark complete</button><button type="button" data-reset-day="6">Mark pending again</button></div><p id="completion-message" class="completion-message" role="status"></p><noscript>Enable JavaScript to save completion. All lesson content remains readable.</noscript></section></article></div><nav class="lesson-nav" aria-label="Lesson navigation"><a href="day-5.html">← Day 5: Spring Boot Fundamentals</a><a href="index.html">Home</a><a href="day-7.html">Day 7: Building CRUD APIs →</a></nav></main><footer>Java Backend Lab · Fictional banking examples for learning · Course baseline: Java 21 / Spring Boot 3.5</footer></body></html>
